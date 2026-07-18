@@ -27,7 +27,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
       }}
     >
       {children}
-      <View pointerEvents="box-none" style={styles.container}>
+      <View style={styles.container}>
         {toasts.map((t) => (
           <Pressable
             key={t.id}
@@ -60,6 +60,7 @@ const styles = StyleSheet.create({
     right: 20,
     gap: 8,
     zIndex: 9999,
+    pointerEvents: "box-none",
   } as any,
   toast: {
     backgroundColor: theme.colors.surface,

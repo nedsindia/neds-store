@@ -41,9 +41,12 @@ async def update_rules(body: BusinessRulesUpdate, current_user: dict = Depends(r
     db = get_db()
     updates = {k: v for k, v in body.model_dump(exclude_unset=True).items() if v is not None}
     updates["updated_at"] = utcnow()
+    # $setOnInsert may not touch any field that appears in $set (MongoDB path-conflict rule)
+    on_insert = {k: v for k, v in DEFAULT_RULES.items() if k not in updates}
+    on_insert["id"] = "default"
     await db.business_rules.update_one(
         {"id": "default"},
-        {"$set": updates, "$setOnInsert": {**DEFAULT_RULES, "id": "default"}},
+        {"$set": updates, "$setOnInsert": on_insert},
         upsert=True,
     )
     await log_event(current_user, "rules.update", "business_rules", "default", {"fields": list(updates.keys())})
