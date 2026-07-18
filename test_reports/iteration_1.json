@@ -1,0 +1,65 @@
+{
+  "summary": "NEDS STORE Phase 1 end-to-end tested. Backend: 25/26 pytest cases passed (96%). Frontend: all 8 critical flows verified (login prefill, dashboard KPIs, sidebar navigation to 9 admin routes, Add User modal, logout, unauth redirect). ONE CRITICAL BACKEND BUG: PATCH /api/business-rules returns 500 with MongoDB WriteError 'Updating the path commission_percent would create a conflict at commission_percent' — same fields exist in both $set and $setOnInsert of the upsert. As a result the Business Rules screen Save action does NOT persist (this rejects the PRD requirement 'editing commission % and clicking Save shows success toast; reload preserves value'). All other business flows work correctly, including full happy-path delivery-verification (order create → auto-delivery → assign rider → rider location within radius auto-generates 4-digit code that is hidden from rider → wrong code rejected → correct code marks order delivered and flips COD payment to paid).",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "PATCH /api/business-rules",
+        "issue": "MongoDB WriteError code 40: '$set' updates and '$setOnInsert' both include DEFAULT_RULES keys (commission_percent, etc.) causing the field-path conflict. Fix in /app/backend/routes/admin_routes.py update_rules(): build $setOnInsert dict as {k: v for k, v in DEFAULT_RULES.items() if k not in updates}, or perform an upsert-on-insert then update-on-existing in two steps.",
+        "priority": "CRITICAL"
+      }
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "app/admin/rules.tsx",
+        "issue": "Save Changes button shows failure toast because backend PATCH /api/business-rules returns 500 (see critical backend bug). No frontend code change needed; will work once backend fixed.",
+        "testID": "rules-save-button",
+        "priority": "HIGH"
+      }
+    ],
+    "integration_issues": [
+      {
+        "flow": "Admin → Rules → Save",
+        "issue": "Update fails due to backend 500. Rules Save is fully blocked until backend fix.",
+        "affected_testIDs": ["rules-save-button", "rules-commission_percent"]
+      }
+    ],
+    "design_issues": [],
+    "react_native_issues": [
+      {
+        "component": "app-wide (React Native Web)",
+        "issue": "Console warning during app boot: 'props.pointerEvents is deprecated. Use style.pointerEvents'. Some component (likely a third-party lib or a custom View) still passes pointerEvents as a prop. Non-blocking but should be migrated."
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_neds_phase1.py",
+    "/app/backend/tests/conftest.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "FIX (backend, critical): Rewrite PATCH /api/business-rules to avoid $set/$setOnInsert key overlap. Suggested: `on_insert = {k: v for k, v in DEFAULT_RULES.items() if k not in updates}; update_one({id:'default'}, {'$set': updates, '$setOnInsert': on_insert}, upsert=True)`.",
+    "After fix, re-run pytest tests/test_neds_phase1.py::TestBusinessRules and manually verify the Rules screen Save toast + reload persistence.",
+    "Optional: audit React Native Web usage of pointerEvents prop to remove deprecation warning."
+  ],
+  "critical_code_review_comments": [
+    "auth.py: require_admin = require_roles(ROLE_MANAGER, ROLE_STAFF_ADMIN) — Super Admin is implicitly allowed inside require_roles(), which is correct and works as expected.",
+    "order_routes.py get_order(): the guard `if current_user['role'] not in {customer,super_admin,manager,staff_admin}` combined with the inner condition is functionally correct but slightly convoluted; consider simplifying to `if current_user['role'] == ROLE_RIDER: delivery.pop('verification_code', None)`.",
+    "admin_routes.py update_rules(): the root cause of the 500 — $set and $setOnInsert cannot share keys in an upsert.",
+    "user_routes.py deactivate_user uses `require_roles()` (super_admin only) — correct behavior, matches spec that soft delete requires super admin. Consider explicit docstring."
+  ],
+  "updated_files": [
+    "/app/backend/tests/__init__.py (new)",
+    "/app/backend/tests/conftest.py (new)",
+    "/app/backend/tests/test_neds_phase1.py (new)",
+    "/app/test_reports/pytest/pytest_results.xml (generated)"
+  ],
+  "success_rate": {"backend": "96% (25/26)", "frontend": "100% of Phase-1 flows verified (rules save UI blocked by backend bug)"},
+  "seed_data_creation": "Tests create TEST_-prefixed users (one per role), TEST_ products, and TEST_ orders through public API. No direct DB writes. Cleanup left to the main agent (fixtures scoped session; test users soft-deactivated where explicitly tested).",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "All 25 previously-passing pytest cases should continue to pass; the 1 failing case is TestBusinessRules::test_get_and_patch_and_effect. After the main agent fixes /app/backend/routes/admin_routes.py update_rules() upsert, rerun `cd /app/backend && pytest tests/test_neds_phase1.py -v` and re-check the /admin/rules screen (login → nav-rules → edit rules-commission_percent → click rules-save-button → expect success toast; reload page and confirm value persists).",
+  "rca_of_issue": "PATCH /api/business-rules → MongoDB update_one with upsert=True passes both `$set: updates` and `$setOnInsert: {**DEFAULT_RULES, 'id':'default'}`. Because DEFAULT_RULES contains every rule field (commission_percent, delivery_charge, ...), any PATCH that includes one of those keys (which every real edit does) triggers pymongo.errors.WriteError code 40: 'Updating the path <field> would create a conflict at <field>'. MongoDB prohibits the same field appearing in both operators of an upsert modifier. Reproduction: `curl -X PATCH .../api/business-rules -H 'Authorization: Bearer <admin>' -H 'Content-Type: application/json' -d '{\"commission_percent\": 12}'` → HTTP 500. Mitigation: exclude keys present in `updates` from `$setOnInsert` (see action item)."
+}
