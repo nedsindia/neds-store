@@ -1,0 +1,157 @@
+{
+  "theme": "light",
+  "brand": {
+    "name": "NEDS STORE",
+    "full_name": "Next Era Digital Solutions",
+    "tagline": "Learn • Grow • Succeed",
+    "currency": "INR (₹)",
+    "locale": "en-IN"
+  },
+  "typography": {
+    "headings": {
+      "family": "Manrope, sans-serif",
+      "weights": ["600", "800"],
+      "usage": "Use for all page titles, section headers, and card titles. Do NOT use Inter.",
+      "styles": {
+        "h1": "text-3xl md:text-4xl font-extrabold tracking-tight text-zinc-950",
+        "h2": "text-2xl md:text-3xl font-bold tracking-tight text-zinc-900",
+        "h3": "text-xl md:text-2xl font-semibold text-zinc-900"
+      }
+    },
+    "body": {
+      "family": "IBM Plex Sans, sans-serif",
+      "weights": ["400", "500"],
+      "usage": "Use for all paragraphs, labels, and standard UI text.",
+      "styles": {
+        "base": "text-base text-zinc-700 leading-relaxed",
+        "sm": "text-sm text-zinc-600",
+        "xs": "text-xs text-zinc-500 font-medium uppercase tracking-[0.1em]"
+      }
+    },
+    "mono": {
+      "family": "JetBrains Mono, monospace",
+      "usage": "Use for IDs, numbers, currency (₹), data tables, and verification codes.",
+      "styles": {
+        "data": "font-mono text-sm tracking-tight text-zinc-800"
+      }
+    }
+  },
+  "colors": {
+    "primary": {
+      "DEFAULT": "#059669",
+      "hover": "#047857",
+      "light": "#D1FAE5",
+      "foreground": "#FFFFFF",
+      "description": "Enterprise Green for primary actions, active states, and success metrics."
+    },
+    "background": {
+      "DEFAULT": "#FFFFFF",
+      "secondary": "#F4F4F5",
+      "description": "Pure white for main background to ensure max readability."
+    },
+    "surface": {
+      "DEFAULT": "#09090B",
+      "muted": "#18181B",
+      "foreground": "#FFFFFF",
+      "description": "Black surfaces as requested. Use for Sidebar, specific high-impact KPI cards, and Tooltips."
+    },
+    "border": {
+      "DEFAULT": "#E4E4E7",
+      "dark": "#27272A"
+    },
+    "status": {
+      "success": "#10B981",
+      "warning": "#F59E0B",
+      "danger": "#EF4444",
+      "info": "#3B82F6"
+    }
+  },
+  "spacing_and_layout": {
+    "philosophy": "High density for data, generous padding for containers. 'Swiss Brutalist' precision.",
+    "sidebar": "Fixed width 260px, black background (#09090B), white text, green active states. Sticky left.",
+    "header": "Height 64px, white background, bottom border (border-zinc-200). Sticky top, z-50. NO transparent backgrounds.",
+    "content_area": "Padding p-6 or p-8. Max-width constraints on forms, full-width for tables.",
+    "cards": "Sharp or max 6px radius. 1px border. Solid backgrounds. No soft blurry shadows.",
+    "grid_system": "Bento-style for dashboards. KPI cards: col-span-1. Charts: col-span-2 or 3. Data Tables: col-span-full."
+  },
+  "components": {
+    "buttons": {
+      "primary": "bg-[#059669] hover:bg-[#047857] text-white font-medium px-4 py-2 rounded-md transition-colors",
+      "secondary": "bg-[#09090B] hover:bg-[#27272A] text-white font-medium px-4 py-2 rounded-md transition-colors",
+      "outline": "border border-zinc-200 hover:border-[#09090B] text-zinc-900 bg-white px-4 py-2 rounded-md transition-all",
+      "ghost": "hover:bg-zinc-100 text-zinc-700 px-4 py-2 rounded-md transition-colors"
+    },
+    "tables": {
+      "container": "border border-zinc-200 rounded-md overflow-hidden bg-white",
+      "header": "bg-zinc-50 border-b border-zinc-200 text-xs font-semibold text-zinc-500 uppercase tracking-wider py-3 px-4",
+      "row": "border-b border-zinc-100 hover:bg-zinc-50/50 transition-colors",
+      "cell": "py-3 px-4 text-sm text-zinc-700",
+      "pagination": "flex items-center justify-between px-4 py-3 bg-white border-t border-zinc-200"
+    },
+    "cards": {
+      "kpi": "bg-white border border-zinc-200 p-6 rounded-md flex flex-col gap-2 hover:border-[#059669]/50 transition-colors",
+      "kpi_dark": "bg-[#09090B] text-white p-6 rounded-md flex flex-col gap-2 border border-[#27272A]",
+      "chart_container": "bg-white border border-zinc-200 p-6 rounded-md"
+    },
+    "forms": {
+      "input": "border border-zinc-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#059669]/20 focus:border-[#059669] transition-all bg-white",
+      "label": "block text-sm font-medium text-zinc-700 mb-1.5",
+      "error": "text-xs text-red-500 mt-1"
+    },
+    "badges": {
+      "active": "bg-emerald-100 text-emerald-800 border border-emerald-200 px-2 py-0.5 rounded text-xs font-medium",
+      "pending": "bg-amber-100 text-amber-800 border border-amber-200 px-2 py-0.5 rounded text-xs font-medium",
+      "inactive": "bg-zinc-100 text-zinc-800 border border-zinc-200 px-2 py-0.5 rounded text-xs font-medium"
+    }
+  },
+  "screens": {
+    "login": {
+      "layout": "Centered card on a subtle dotted/grid background. Split layout (Left: branding/green, Right: form).",
+      "features": "Mobile Number + Password. Brand logo, Tagline prominently displayed."
+    },
+    "dashboard": {
+      "layout": "Sidebar + Header + Main Content.",
+      "kpis": "Total Orders, Revenue, Active Riders, Products, Sellers, Customers.",
+      "live_map": "Embedded Google Maps placeholder with Rider pins.",
+      "charts": "Revenue trend (line), Order volume (bar)."
+    },
+    "user_management": {
+      "layout": "List view with advanced filtering (Role: Customer, Seller, Rider, Staff, Admin). Search bar. Action column."
+    },
+    "product_management": {
+      "layout": "Table with image thumbnail, title, category, price, stock status toggle."
+    },
+    "order_management": {
+      "layout": "Dense table. Lifecycle stages as badges. Clickable row to Order Detail."
+    },
+    "business_rules": {
+      "layout": "Settings-style forms. Configurable sliders or inputs for commission %, radius km, thresholds."
+    }
+  },
+  "visual_enhancers": {
+    "icons": "Use lucide-react. Stroke width 2px. Clean and professional.",
+    "borders": "1px solid #E4E4E7 everywhere to separate sections. Grid-like technical layout."
+  },
+  "UNIVERSAL_GUIDELINES_FOR_MAIN_AGENT": [
+    "Do NOT use pure Inter for headings. Use Manrope or Cabinet Grotesk.",
+    "Maintain strict High-Contrast: White backgrounds, Black sidebar/surfaces, Enterprise Green (#059669) highlights.",
+    "Do NOT use fully transparent backgrounds for headers or dropdowns. Always use solid white or black.",
+    "Use data-testid on ALL interactive elements (buttons, inputs, links, tabs).",
+    "Forms should use Shadcn standard inputs, customized to match the strict borders.",
+    "For KPI cards, use an 'Optical Clarity' approach. Crisp 1px borders, bold monospace numbers.",
+    "Never center-align paragraphs or tables. Always left-align for data readability.",
+    "Implement hovering micro-interactions (e.g. slight border color change to green, text color shift).",
+    "Replace 'SaaS Blue' with Enterprise Green (#059669).",
+    "Use JetBrains Mono or similar monospace for all financial figures (₹) and data IDs."
+  ],
+  "instructions_to_main_agent": [
+    "Start by setting up the basic layout: a fixed Black sidebar and a fixed White header.",
+    "Implement the Dashboard route first to establish the visual language (KPIs, Chart placeholders).",
+    "Create reusable table component for User, Product, and Order management.",
+    "Use proper Shadcn components for Dropdowns, Dialogs, Tabs, customized via standard Tailwind utility classes.",
+    "Do not build HTML date pickers or selects. Use Shadcn.",
+    "Ensure all monetary values use the ₹ symbol and monospace font.",
+    "Create a realistic map placeholder using a gray background with some marker icons for 'Live Rider Monitoring'.",
+    "Make sure the sidebar clearly indicates the active route with a Green highlight or text."
+  ]
+}
