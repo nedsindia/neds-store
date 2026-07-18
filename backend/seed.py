@@ -24,12 +24,12 @@ DEFAULT_RULES = {
 }
 
 SEED_CATEGORIES = [
-    {"name": "Groceries", "icon": "shopping-cart"},
-    {"name": "Fruits & Vegetables", "icon": "apple"},
-    {"name": "Dairy & Breakfast", "icon": "coffee"},
-    {"name": "Snacks & Beverages", "icon": "package"},
-    {"name": "Personal Care", "icon": "heart"},
-    {"name": "Household", "icon": "home"},
+    {"name": "Groceries", "icon": "shopping-cart", "min_commission": 5.0, "max_commission": 25.0},
+    {"name": "Fruits & Vegetables", "icon": "apple", "min_commission": 5.0, "max_commission": 20.0},
+    {"name": "Dairy & Breakfast", "icon": "coffee", "min_commission": 5.0, "max_commission": 20.0},
+    {"name": "Snacks & Beverages", "icon": "package", "min_commission": 8.0, "max_commission": 25.0},
+    {"name": "Personal Care", "icon": "heart", "min_commission": 10.0, "max_commission": 30.0},
+    {"name": "Household", "icon": "home", "min_commission": 8.0, "max_commission": 25.0},
 ]
 
 
@@ -75,6 +75,11 @@ async def seed_rules():
 async def seed_categories():
     db = get_db()
     if await db.categories.count_documents({}) > 0:
+        # Backfill min/max commission for existing categories that pre-date the module
+        await db.categories.update_many(
+            {"min_commission": {"$exists": False}},
+            {"$set": {"min_commission": 5.0, "max_commission": 20.0, "updated_at": utcnow()}},
+        )
         return
     docs = []
     for c in SEED_CATEGORIES:
@@ -84,6 +89,8 @@ async def seed_categories():
             "description": None,
             "icon": c["icon"],
             "active": True,
+            "min_commission": c["min_commission"],
+            "max_commission": c["max_commission"],
             "created_at": utcnow(),
             "updated_at": utcnow(),
         })
@@ -91,7 +98,20 @@ async def seed_categories():
     logger.info(f"Seeded {len(docs)} categories")
 
 
+async def backfill_products():
+    """Give any pre-existing product without commission_percentage the category
+    minimum commission — keeps them valid under the new rules."""
+    db = get_db()
+    cats: dict = {}
+    async for c in db.categories.find({}, {"_id": 0, "id": 1, "min_commission": 1}):
+        cats[c["id"]] = c.get("min_commission", 5.0)
+    async for p in db.products.find({"commission_percentage": {"$exists": False}}, {"_id": 0, "id": 1, "category_id": 1}):
+        default = cats.get(p.get("category_id"), 5.0)
+        await db.products.update_one({"id": p["id"]}, {"$set": {"commission_percentage": default, "updated_at": utcnow()}})
+
+
 async def seed_all():
     await seed_super_admin()
     await seed_rules()
     await seed_categories()
+    await backfill_products()

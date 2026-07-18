@@ -78,6 +78,15 @@ class CategoryCreate(BaseModel):
     description: str | None = None
     icon: str | None = None
     active: bool = True
+    min_commission: float = 5.0
+    max_commission: float = 20.0
+
+    @field_validator("min_commission", "max_commission")
+    @classmethod
+    def _pct(cls, v: float) -> float:
+        if v < 0 or v > 100:
+            raise ValueError("Commission must be between 0 and 100")
+        return v
 
 
 class CategoryUpdate(BaseModel):
@@ -85,6 +94,8 @@ class CategoryUpdate(BaseModel):
     description: str | None = None
     icon: str | None = None
     active: bool | None = None
+    min_commission: float | None = None
+    max_commission: float | None = None
 
 
 # ---------- Products ----------
@@ -99,6 +110,7 @@ class ProductCreate(BaseModel):
     unit: str = "pc"  # pc, kg, ltr, g, ml
     image_base64: str | None = None
     active: bool = True
+    commission_percentage: float  # required — must fall within category min/max
 
 
 class ProductUpdate(BaseModel):
@@ -111,6 +123,7 @@ class ProductUpdate(BaseModel):
     unit: str | None = None
     image_base64: str | None = None
     active: bool | None = None
+    commission_percentage: float | None = None
 
 
 # ---------- Orders ----------

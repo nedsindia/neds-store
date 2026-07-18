@@ -145,7 +145,7 @@ class TestCatalog:
         # admin creates for seller
         r = client.post(f"{API}/products", headers=super_admin_headers, json={
             "name": "TEST_Product_A", "category_id": cid, "seller_id": seller_id,
-            "price": 100.0, "stock": 5, "unit": "pc",
+            "price": 100.0, "stock": 5, "unit": "pc", "commission_percentage": 10,
         })
         assert r.status_code == 201
         assert r.json()["seller_id"] == seller_id
@@ -153,13 +153,14 @@ class TestCatalog:
         # invalid category
         rbad = client.post(f"{API}/products", headers=super_admin_headers, json={
             "name": "TEST_bad", "category_id": "nope", "seller_id": seller_id, "price": 10,
+            "commission_percentage": 10,
         })
         assert rbad.status_code == 400
 
         # seller creates only their own
         r2 = client.post(f"{API}/products", headers=created_users["seller"]["headers"], json={
             "name": "TEST_Product_Sel", "category_id": cid, "seller_id": "someone-else",
-            "price": 50.0, "stock": 3,
+            "price": 50.0, "stock": 3, "commission_percentage": 10,
         })
         assert r2.status_code == 201
         # seller_id must be overridden to seller's own id
@@ -182,7 +183,8 @@ def order_context(client, super_admin_headers, created_users):
     cid = cats[0]["id"]
     seller_id = created_users["seller"]["user"]["id"]
     rp = client.post(f"{API}/products", headers=super_admin_headers, json={
-        "name": "TEST_OrderProduct", "category_id": cid, "seller_id": seller_id, "price": 200.0, "stock": 10,
+        "name": "TEST_OrderProduct", "category_id": cid, "seller_id": seller_id,
+        "price": 200.0, "stock": 10, "commission_percentage": 10,
     })
     assert rp.status_code == 201
     prod = rp.json()
@@ -226,7 +228,8 @@ class TestOrders:
         cid = cats[0]["id"]
         seller_id = created_users["seller"]["user"]["id"]
         rp = client.post(f"{API}/products", headers=super_admin_headers, json={
-            "name": "TEST_BigProduct", "category_id": cid, "seller_id": seller_id, "price": 500.0, "stock": 10,
+            "name": "TEST_BigProduct", "category_id": cid, "seller_id": seller_id,
+            "price": 500.0, "stock": 10, "commission_percentage": 10,
         })
         prod = rp.json()
         ro = client.post(f"{API}/orders", headers=created_users["customer"]["headers"], json={
@@ -346,8 +349,11 @@ class TestBusinessRules:
         cats = client.get(f"{API}/categories").json()["items"]
         cid = cats[0]["id"]
         seller_id = created_users["seller"]["user"]["id"]
+        # Note: Order commission now derives from PRODUCT commission_percentage, not from rules.
+        # Use product with 15% commission to confirm 30.0 total.
         rp = client.post(f"{API}/products", headers=super_admin_headers, json={
-            "name": "TEST_RuleProduct", "category_id": cid, "seller_id": seller_id, "price": 100, "stock": 5,
+            "name": "TEST_RuleProduct", "category_id": cid, "seller_id": seller_id,
+            "price": 100, "stock": 5, "commission_percentage": 15,
         })
         prod = rp.json()
         ro = client.post(f"{API}/orders", headers=created_users["customer"]["headers"], json={

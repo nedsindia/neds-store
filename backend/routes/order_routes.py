@@ -63,14 +63,30 @@ async def create_order(
     if rules.get("free_delivery_above") and subtotal >= rules["free_delivery_above"]:
         delivery_charge = 0.0
 
-    commission_pct = rules.get("commission_percent", 10.0)
-    commission = round(subtotal * commission_pct / 100, 2)
+    # --- Per-product commission (Category-Based Dynamic Commission Module) ---
+    # Total commission = sum(line.price * line.qty * product.commission_percentage / 100)
+    prod_ids = [i.product_id for i in body.items]
+    prods: dict = {}
+    async for p in db.products.find({"id": {"$in": prod_ids}}, {"_id": 0, "id": 1, "commission_percentage": 1, "name": 1}):
+        prods[p["id"]] = p
+
+    commission = 0.0
+    enriched_items: list[dict] = []
+    for i in body.items:
+        line = i.model_dump()
+        p = prods.get(i.product_id)
+        pct = float(p.get("commission_percentage") if p and p.get("commission_percentage") is not None else rules.get("commission_percent", 10.0))
+        line["commission_percentage"] = pct
+        line["line_commission"] = round(i.price * i.qty * pct / 100, 2)
+        commission += line["line_commission"]
+        enriched_items.append(line)
+    commission = round(commission, 2)
 
     order_id = new_id()
     order = {
         "id": order_id,
         "customer_id": customer_id,
-        "items": [i.model_dump() for i in body.items],
+        "items": enriched_items,
         "subtotal": subtotal,
         "delivery_charge": delivery_charge,
         "commission": commission,
