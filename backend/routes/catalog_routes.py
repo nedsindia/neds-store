@@ -46,9 +46,18 @@ async def _validate_product_commission(db, category_id: str, commission: float) 
     if commission < lo or commission > hi:
         raise HTTPException(
             status_code=400,
-            detail=f"Commission must be between {lo}% and {hi}% for {cat['name']} category.",
+            detail=f"Commission must be between {_fmt_pct(lo)}% and {_fmt_pct(hi)}% for {cat['name']} category.",
         )
     return cat
+
+
+def _fmt_pct(v) -> str:
+    """Render commission as int when whole (5.0 → '5'), keep decimals otherwise (7.5 → '7.5')."""
+    try:
+        f = float(v)
+    except (TypeError, ValueError):
+        return str(v)
+    return str(int(f)) if f.is_integer() else (f"{f:.2f}".rstrip("0").rstrip("."))
 
 
 # ============ CATEGORIES ============
@@ -213,6 +222,9 @@ async def create_product(
         "image_base64": body.image_base64,
         "active": body.active,
         "commission_percentage": body.commission_percentage,
+        "weight_kg": body.weight_kg,
+        "is_bulky": body.is_bulky,
+        "bulky_charge": body.bulky_charge,
         "created_at": utcnow(),
         "updated_at": utcnow(),
     }

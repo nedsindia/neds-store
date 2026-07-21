@@ -11,6 +11,7 @@ logger = logging.getLogger("neds.seed")
 
 DEFAULT_RULES = {
     "id": "default",
+    # Legacy / general
     "commission_percent": 10.0,
     "delivery_radius_km": 5.0,
     "delivery_charge": 30.0,
@@ -21,6 +22,21 @@ DEFAULT_RULES = {
     "support_mobile": "9999999999",
     "currency": "INR",
     "locale": "en-IN",
+    # Enterprise Delivery Charge Engine (Point 1)
+    "minimum_delivery_distance_km": 2.0,
+    "minimum_delivery_charge": 20.0,
+    "per_km_charge": 7.0,
+    "maximum_delivery_radius_km": 15.0,
+    "free_delivery_threshold": 1000.0,
+    "is_free_delivery_enabled": True,
+    "weight_charge_rules": [
+        {"min_kg": 0.0, "max_kg": 5.0, "charge": 0.0},
+        {"min_kg": 5.0, "max_kg": 10.0, "charge": 20.0},
+        {"min_kg": 10.0, "max_kg": 20.0, "charge": 50.0},
+        {"min_kg": 20.0, "max_kg": None, "charge": 100.0},
+    ],
+    "default_seller_lat": 12.9716,
+    "default_seller_lng": 77.5946,
 }
 
 SEED_CATEGORIES = [
@@ -64,6 +80,17 @@ async def seed_rules():
     db = get_db()
     existing = await db.business_rules.find_one({"id": "default"})
     if existing:
+        # Backfill any newly-added delivery-engine keys onto pre-existing rules doc
+        updates = {}
+        for k, v in DEFAULT_RULES.items():
+            if k == "id":
+                continue
+            if k not in existing:
+                updates[k] = v
+        if updates:
+            updates["updated_at"] = utcnow()
+            await db.business_rules.update_one({"id": "default"}, {"$set": updates})
+            logger.info(f"Backfilled business_rules with {list(updates.keys())}")
         return
     rules = DEFAULT_RULES.copy()
     rules["created_at"] = utcnow()
@@ -100,7 +127,8 @@ async def seed_categories():
 
 async def backfill_products():
     """Give any pre-existing product without commission_percentage the category
-    minimum commission — keeps them valid under the new rules."""
+    minimum commission — keeps them valid under the new rules. Also default
+    weight_kg / is_bulky / bulky_charge for the Delivery Engine."""
     db = get_db()
     cats: dict = {}
     async for c in db.categories.find({}, {"_id": 0, "id": 1, "min_commission": 1}):
@@ -108,6 +136,11 @@ async def backfill_products():
     async for p in db.products.find({"commission_percentage": {"$exists": False}}, {"_id": 0, "id": 1, "category_id": 1}):
         default = cats.get(p.get("category_id"), 5.0)
         await db.products.update_one({"id": p["id"]}, {"$set": {"commission_percentage": default, "updated_at": utcnow()}})
+    # Delivery-engine backfill — these are additive, safe defaults
+    await db.products.update_many(
+        {"weight_kg": {"$exists": False}},
+        {"$set": {"weight_kg": 0.0, "is_bulky": False, "bulky_charge": 0.0}},
+    )
 
 
 async def seed_all():

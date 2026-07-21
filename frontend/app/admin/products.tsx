@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Switch, Text, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
 
 import { Badge } from "@/src/components/Badge";
@@ -45,6 +45,9 @@ type FormState = {
   category_id: string;
   seller_id: string;
   commission_percentage: string;
+  weight_kg: string;
+  is_bulky: boolean;
+  bulky_charge: string;
 };
 
 const EMPTY: FormState = {
@@ -58,6 +61,9 @@ const EMPTY: FormState = {
   category_id: "",
   seller_id: "",
   commission_percentage: "",
+  weight_kg: "0",
+  is_bulky: false,
+  bulky_charge: "0",
 };
 
 export default function ProductsPage() {
@@ -128,6 +134,9 @@ export default function ProductsPage() {
       category_id: p.category_id,
       seller_id: p.seller_id,
       commission_percentage: String(p.commission_percentage),
+      weight_kg: String((p as any).weight_kg ?? 0),
+      is_bulky: !!(p as any).is_bulky,
+      bulky_charge: String((p as any).bulky_charge ?? 0),
     });
     setErrors({});
     setModal(true);
@@ -155,7 +164,7 @@ export default function ProductsPage() {
     if (!form.commission_percentage || isNaN(comm)) {
       e.commission_percentage = "Commission required";
     } else if (cat && (comm < cat.min_commission || comm > cat.max_commission)) {
-      e.commission_percentage = `Commission must be between ${cat.min_commission}% and ${cat.max_commission}% for ${cat.name} category.`;
+      e.commission_percentage = `Commission must be between ${fmtPct(cat.min_commission)}% and ${fmtPct(cat.max_commission)}% for ${cat.name} category.`;
     }
     setErrors(e);
     if (Object.keys(e).length) return;
@@ -172,6 +181,9 @@ export default function ProductsPage() {
         stock: Number(form.stock || 0),
         unit: form.unit,
         commission_percentage: comm,
+        weight_kg: Number(form.weight_kg || 0),
+        is_bulky: form.is_bulky,
+        bulky_charge: form.is_bulky ? Number(form.bulky_charge || 0) : 0,
       };
       if (form.id) {
         await api(`/products/${form.id}`, { method: "PATCH", body });
@@ -222,7 +234,7 @@ export default function ProductsPage() {
           </Text>
           {cat ? (
             <Text style={{ fontFamily: theme.fonts.mono, fontSize: 10, color: theme.colors.textMuted }}>
-              range {cat.min_commission}–{cat.max_commission}%
+              range {fmtPct(cat.min_commission)}–{fmtPct(cat.max_commission)}%
             </Text>
           ) : null}
           {p.out_of_range ? <View style={{ marginTop: 2 }}><Badge variant="danger">Out of Range</Badge></View> : null}
@@ -287,7 +299,7 @@ export default function ProductsPage() {
             <Text style={styles.commissionLabel}>Commission (%)</Text>
             {selectedCat ? (
               <Text style={styles.commissionHint}>
-                Allowed range for <Text style={{ fontWeight: "700" }}>{selectedCat.name}</Text>: {rangeLo}% – {rangeHi}%
+                Allowed range for <Text style={{ fontWeight: "700" }}>{selectedCat.name}</Text>: {fmtPct(rangeLo!)}% – {fmtPct(rangeHi!)}%
               </Text>
             ) : (
               <Text style={styles.commissionHint}>Select a category to see its allowed range.</Text>
@@ -298,7 +310,7 @@ export default function ProductsPage() {
             onChangeText={(v) => setForm({ ...form, commission_percentage: v.replace(/[^0-9.]/g, "") })}
             keyboardType="decimal-pad"
             error={errors.commission_percentage}
-            placeholder={rangeLo != null ? `${rangeLo} – ${rangeHi}` : "Choose category first"}
+            placeholder={rangeLo != null ? `${fmtPct(rangeLo)} – ${fmtPct(rangeHi!)}` : "Choose category first"}
             testID="new-product-commission"
           />
           {selectedCat ? (
@@ -321,6 +333,48 @@ export default function ProductsPage() {
           ) : null}
         </View>
 
+        {/* Weight & Bulky (Delivery Engine — Point 1) */}
+        <View style={styles.deliveryBox}>
+          <View style={styles.deliveryHead}>
+            <Text style={styles.commissionLabel}>Delivery Engine</Text>
+            <Text style={styles.commissionHint}>Weight is used for weight-slab charges; bulky items add an extra per-item charge on top.</Text>
+          </View>
+          <View style={{ flexDirection: "row", gap: 12, alignItems: "flex-end" }}>
+            <Input
+              label="Weight (kg)"
+              value={form.weight_kg}
+              onChangeText={(v) => setForm({ ...form, weight_kg: v.replace(/[^0-9.]/g, "") })}
+              keyboardType="decimal-pad"
+              containerStyle={{ flex: 1 }}
+              testID="new-product-weight"
+            />
+            <View style={{ flex: 1, gap: 6 }}>
+              <Text style={{ fontFamily: theme.fonts.body, fontSize: 13, fontWeight: "600", color: theme.colors.text }}>Bulky Item</Text>
+              <View style={styles.bulkyRow}>
+                <Switch
+                  value={form.is_bulky}
+                  onValueChange={(v) => setForm({ ...form, is_bulky: v })}
+                  trackColor={{ false: "#D4D4D8", true: theme.colors.primary }}
+                  thumbColor="#fff"
+                  testID="new-product-is-bulky"
+                />
+                <Text style={{ fontFamily: theme.fonts.body, fontSize: 13, color: theme.colors.textMuted }}>
+                  {form.is_bulky ? "Yes — extra charge below" : "No"}
+                </Text>
+              </View>
+            </View>
+            <Input
+              label="Bulky Charge (₹)"
+              value={form.bulky_charge}
+              onChangeText={(v) => setForm({ ...form, bulky_charge: v.replace(/[^0-9.]/g, "") })}
+              keyboardType="decimal-pad"
+              editable={form.is_bulky}
+              containerStyle={{ flex: 1, opacity: form.is_bulky ? 1 : 0.5 }}
+              testID="new-product-bulky-charge"
+            />
+          </View>
+        </View>
+
         <View style={{ flexDirection: "row", justifyContent: "flex-end", gap: 8, marginTop: 8 }}>
           <Button title="Cancel" variant="outline" onPress={() => setModal(false)} />
           <Button title={saving ? "Saving…" : form.id ? "Save Changes" : "Create Product"} onPress={submit} loading={saving} testID="new-product-submit" />
@@ -328,6 +382,11 @@ export default function ProductsPage() {
       </ModalCard>
     </View>
   );
+}
+
+function fmtPct(v: number): string {
+  if (v == null || Number.isNaN(v)) return String(v);
+  return Number.isInteger(v) ? String(v) : String(Math.round(v * 100) / 100);
 }
 
 function buildQuickPicks(lo: number, hi: number): number[] {
@@ -386,5 +445,25 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.primary,
     backgroundColor: theme.colors.primaryLight,
     color: "#065F46",
+  },
+  deliveryBox: {
+    padding: 14,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderRadius: theme.radius.md,
+    backgroundColor: theme.colors.bgSecondary,
+    gap: 8,
+  },
+  deliveryHead: { gap: 4 },
+  bulkyRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderRadius: theme.radius.md,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    backgroundColor: "#fff",
   },
 });

@@ -41,6 +41,8 @@ class UserCreate(BaseModel):
     role: str  # super_admin | manager | staff_admin | customer | seller | rider | staff
     email: str | None = None
     address: str | None = None
+    address_lat: float | None = None
+    address_lng: float | None = None
     active: bool = True
 
     @field_validator("mobile")
@@ -56,6 +58,8 @@ class UserUpdate(BaseModel):
     name: str | None = None
     email: str | None = None
     address: str | None = None
+    address_lat: float | None = None
+    address_lng: float | None = None
     role: str | None = None
     active: bool | None = None
     password: str | None = None
@@ -111,6 +115,10 @@ class ProductCreate(BaseModel):
     image_base64: str | None = None
     active: bool = True
     commission_percentage: float  # required — must fall within category min/max
+    # Delivery-engine per-product fields
+    weight_kg: float = 0.0
+    is_bulky: bool = False
+    bulky_charge: float = 0.0
 
 
 class ProductUpdate(BaseModel):
@@ -124,6 +132,9 @@ class ProductUpdate(BaseModel):
     image_base64: str | None = None
     active: bool | None = None
     commission_percentage: float | None = None
+    weight_kg: float | None = None
+    is_bulky: bool | None = None
+    bulky_charge: float | None = None
 
 
 # ---------- Orders ----------
@@ -166,7 +177,14 @@ class DeliveryVerify(BaseModel):
 
 
 # ---------- Business Rules ----------
+class WeightSlab(BaseModel):
+    min_kg: float
+    max_kg: float | None = None  # None = open-ended (last slab)
+    charge: float
+
+
 class BusinessRulesUpdate(BaseModel):
+    # legacy / general
     commission_percent: float | None = None
     delivery_radius_km: float | None = None
     delivery_charge: float | None = None
@@ -175,3 +193,29 @@ class BusinessRulesUpdate(BaseModel):
     verification_radius_meters: float | None = None
     platform_name: str | None = None
     support_mobile: str | None = None
+
+    # Enterprise Delivery Charge Engine
+    minimum_delivery_distance_km: float | None = None
+    minimum_delivery_charge: float | None = None
+    per_km_charge: float | None = None
+    maximum_delivery_radius_km: float | None = None
+    free_delivery_threshold: float | None = None
+    is_free_delivery_enabled: bool | None = None
+    weight_charge_rules: list[WeightSlab] | None = None
+    default_seller_lat: float | None = None
+    default_seller_lng: float | None = None
+
+
+# ---------- Checkout preview ----------
+class CheckoutPreviewItem(BaseModel):
+    product_id: str
+    qty: int = 1
+
+
+class CheckoutPreviewRequest(BaseModel):
+    items: list[CheckoutPreviewItem]
+    customer_lat: float
+    customer_lng: float
+    seller_lat: float | None = None
+    seller_lng: float | None = None
+    order_subtotal: float | None = None  # if None, computed from products

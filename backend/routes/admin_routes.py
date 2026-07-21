@@ -1,10 +1,11 @@
 """Business Rules Engine + Dashboard + Audit + Payments overview."""
 from datetime import timedelta
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from audit import log_event
 from auth import require_admin, require_roles, get_current_user
 from db import get_db
+from delivery_engine import validate_delivery_rules
 from models import BusinessRulesUpdate, utcnow
 
 router = APIRouter(tags=["admin"])
@@ -22,6 +23,21 @@ DEFAULT_RULES = {
     "support_mobile": "9999999999",
     "currency": "INR",
     "locale": "en-IN",
+    # Enterprise Delivery Charge Engine (Point 1)
+    "minimum_delivery_distance_km": 2.0,
+    "minimum_delivery_charge": 20.0,
+    "per_km_charge": 7.0,
+    "maximum_delivery_radius_km": 15.0,
+    "free_delivery_threshold": 1000.0,
+    "is_free_delivery_enabled": True,
+    "weight_charge_rules": [
+        {"min_kg": 0.0, "max_kg": 5.0, "charge": 0.0},
+        {"min_kg": 5.0, "max_kg": 10.0, "charge": 20.0},
+        {"min_kg": 10.0, "max_kg": 20.0, "charge": 50.0},
+        {"min_kg": 20.0, "max_kg": None, "charge": 100.0},
+    ],
+    "default_seller_lat": 12.9716,
+    "default_seller_lng": 77.5946,
 }
 
 
@@ -40,6 +56,26 @@ async def get_rules(_: dict = Depends(get_current_user)):
 async def update_rules(body: BusinessRulesUpdate, current_user: dict = Depends(require_admin)):
     db = get_db()
     updates = {k: v for k, v in body.model_dump(exclude_unset=True).items() if v is not None}
+    # Weight slabs come in as list of Pydantic models — normalise to plain dicts
+    if "weight_charge_rules" in updates and updates["weight_charge_rules"] is not None:
+        updates["weight_charge_rules"] = [
+            (s.model_dump() if hasattr(s, "model_dump") else dict(s))
+            for s in updates["weight_charge_rules"]
+        ]
+
+    # Validate delivery-engine coherence (rules may partially update, so merge first)
+    if any(k in updates for k in (
+        "minimum_delivery_distance_km", "minimum_delivery_charge", "per_km_charge",
+        "maximum_delivery_radius_km", "free_delivery_threshold", "is_free_delivery_enabled",
+        "weight_charge_rules",
+    )):
+        existing = await db.business_rules.find_one({"id": "default"}, {"_id": 0}) or {}
+        merged = {**existing, **updates}
+        try:
+            validate_delivery_rules(merged)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
     updates["updated_at"] = utcnow()
     # $setOnInsert may not touch any field that appears in $set (MongoDB path-conflict rule)
     on_insert = {k: v for k, v in DEFAULT_RULES.items() if k not in updates}
@@ -52,6 +88,25 @@ async def update_rules(body: BusinessRulesUpdate, current_user: dict = Depends(r
     await log_event(current_user, "rules.update", "business_rules", "default", {"fields": list(updates.keys())})
     rules = await db.business_rules.find_one({"id": "default"}, {"_id": 0})
     return rules
+
+
+@router.get("/delivery-charge-rules")
+async def get_delivery_charge_rules(_: dict = Depends(get_current_user)):
+    """Curated slice for customer/seller/rider apps — the delivery-engine
+    settings only, so mobile clients can render breakdowns without needing
+    the entire business_rules doc."""
+    db = get_db()
+    r = await db.business_rules.find_one({"id": "default"}, {"_id": 0}) or {}
+    return {
+        "minimum_delivery_distance_km": r.get("minimum_delivery_distance_km", 2.0),
+        "minimum_delivery_charge": r.get("minimum_delivery_charge", 20.0),
+        "per_km_charge": r.get("per_km_charge", 7.0),
+        "maximum_delivery_radius_km": r.get("maximum_delivery_radius_km", 15.0),
+        "free_delivery_threshold": r.get("free_delivery_threshold", 0.0),
+        "is_free_delivery_enabled": r.get("is_free_delivery_enabled", True),
+        "weight_charge_rules": r.get("weight_charge_rules", []),
+        "currency": r.get("currency", "INR"),
+    }
 
 
 # ============ DASHBOARD ============

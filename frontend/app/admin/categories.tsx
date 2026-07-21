@@ -32,6 +32,11 @@ type FormState = {
 
 const EMPTY: FormState = { id: null, name: "", description: "", icon: "", min_commission: "5", max_commission: "20" };
 
+function fmtPct(v: number): string {
+  if (v == null || Number.isNaN(v)) return String(v);
+  return Number.isInteger(v) ? String(v) : String(Math.round(v * 100) / 100);
+}
+
 export default function CategoriesPage() {
   const toast = useToast();
   const [rows, setRows] = useState<Category[]>([]);
@@ -114,7 +119,7 @@ export default function CategoriesPage() {
     { key: "description", label: "Description", flex: 2, render: (c) => c.description || "—" },
     { key: "range", label: "Commission Range", flex: 1.2, render: (c) => (
       <View style={styles.rangeCell}>
-        <Text style={styles.rangeText}>{c.min_commission}% – {c.max_commission}%</Text>
+        <Text style={styles.rangeText}>{fmtPct(c.min_commission)}% – {fmtPct(c.max_commission)}%</Text>
         <View style={styles.rangeBar}>
           <View style={[styles.rangeFill, { width: `${Math.min(100, c.max_commission)}%`, left: `${Math.min(100, c.min_commission)}%`, right: undefined, marginLeft: 0 }]} />
         </View>
@@ -176,7 +181,7 @@ export default function CategoriesPage() {
           />
         </View>
         <Text style={styles.hint}>
-          Sellers can select any commission between {form.min_commission || "?"}% and {form.max_commission || "?"}% for products in this category.
+          Sellers can select any commission between {form.min_commission ? fmtPct(Number(form.min_commission)) : "?"}% and {form.max_commission ? fmtPct(Number(form.max_commission)) : "?"}% for products in this category.
         </Text>
         <View style={{ flexDirection: "row", justifyContent: "flex-end", gap: 8, marginTop: 8 }}>
           <Button title="Cancel" variant="outline" onPress={() => setModal(false)} />

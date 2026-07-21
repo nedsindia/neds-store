@@ -13,7 +13,9 @@ from auth import (
     require_roles,
 )
 from db import get_db
+from delivery_engine import calculate_delivery_charge
 from models import (
+    CheckoutPreviewRequest,
     DeliveryAssign,
     DeliveryVerify,
     OrderCreate,
@@ -26,6 +28,70 @@ from models import (
 router = APIRouter(tags=["orders"])
 
 ORDER_STATUSES = ["placed", "accepted", "packed", "out_for_delivery", "delivered", "cancelled"]
+
+
+# ============ CHECKOUT PREVIEW (Enterprise Delivery Charge Engine — Point 1) ============
+@router.post("/checkout/preview")
+async def checkout_preview(body: CheckoutPreviewRequest, current_user: dict = Depends(get_current_user)):
+    """Return the full delivery-charge breakdown BEFORE placing an order.
+    Used by the Customer App checkout screen so the customer always sees
+    exactly how the delivery charge is calculated."""
+    db = get_db()
+    rules = await db.business_rules.find_one({"id": "default"}, {"_id": 0}) or {}
+
+    prod_ids = [i.product_id for i in body.items]
+    prods: dict = {}
+    subtotal = 0.0
+    async for p in db.products.find(
+        {"id": {"$in": prod_ids}},
+        {"_id": 0, "id": 1, "name": 1, "price": 1, "weight_kg": 1, "is_bulky": 1, "bulky_charge": 1, "seller_id": 1},
+    ):
+        prods[p["id"]] = p
+
+    line_items: list[dict] = []
+    for it in body.items:
+        p = prods.get(it.product_id)
+        if not p:
+            raise HTTPException(status_code=400, detail=f"Product not found: {it.product_id}")
+        subtotal += float(p.get("price", 0)) * it.qty
+        line_items.append({"product_id": it.product_id, "qty": it.qty, "name": p.get("name")})
+
+    if body.order_subtotal is not None:
+        subtotal = float(body.order_subtotal)
+
+    seller_lat = body.seller_lat
+    seller_lng = body.seller_lng
+    if seller_lat is None or seller_lng is None:
+        for it in body.items:
+            p = prods.get(it.product_id)
+            if p and p.get("seller_id"):
+                seller = await db.users.find_one({"id": p["seller_id"]}, {"_id": 0, "address_lat": 1, "address_lng": 1})
+                if seller and seller.get("address_lat") is not None:
+                    seller_lat = seller["address_lat"]
+                    seller_lng = seller["address_lng"]
+                    break
+
+    breakdown = calculate_delivery_charge(
+        rules=rules,
+        items=line_items,
+        products_by_id=prods,
+        customer_lat=body.customer_lat,
+        customer_lng=body.customer_lng,
+        seller_lat=seller_lat,
+        seller_lng=seller_lng,
+        order_subtotal=subtotal,
+    )
+
+    min_order = float(rules.get("min_order_amount") or 0)
+    meets_min = subtotal >= min_order
+
+    return {
+        "subtotal": round(subtotal, 2),
+        "meets_minimum_order": meets_min,
+        "minimum_order_amount": min_order,
+        "delivery_breakdown": breakdown,
+        "estimated_total": round(subtotal + float(breakdown.get("final_delivery_charge") or 0), 2) if not breakdown.get("reject") else None,
+    }
 
 
 def haversine_m(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
@@ -57,19 +123,49 @@ async def create_order(
     if rules.get("min_order_amount") and subtotal < rules["min_order_amount"]:
         raise HTTPException(status_code=400, detail=f"Minimum order amount is ₹{rules['min_order_amount']}")
 
-    delivery_charge = 0.0
-    if rules.get("delivery_charge"):
-        delivery_charge = rules["delivery_charge"]
-    if rules.get("free_delivery_above") and subtotal >= rules["free_delivery_above"]:
-        delivery_charge = 0.0
-
-    # --- Per-product commission (Category-Based Dynamic Commission Module) ---
-    # Total commission = sum(line.price * line.qty * product.commission_percentage / 100)
+    # --- Fetch products once — used by BOTH commission calc & delivery engine ---
     prod_ids = [i.product_id for i in body.items]
     prods: dict = {}
-    async for p in db.products.find({"id": {"$in": prod_ids}}, {"_id": 0, "id": 1, "commission_percentage": 1, "name": 1}):
+    async for p in db.products.find(
+        {"id": {"$in": prod_ids}},
+        {"_id": 0, "id": 1, "name": 1, "commission_percentage": 1,
+         "weight_kg": 1, "is_bulky": 1, "bulky_charge": 1, "seller_id": 1},
+    ):
         prods[p["id"]] = p
 
+    # --- Seller location (Delivery Engine): prefer first item's seller lat/lng, else business_rules default ---
+    seller_lat = None
+    seller_lng = None
+    for it in body.items:
+        p = prods.get(it.product_id)
+        if not p:
+            continue
+        sid = p.get("seller_id")
+        if not sid:
+            continue
+        seller = await db.users.find_one({"id": sid}, {"_id": 0, "address_lat": 1, "address_lng": 1})
+        if seller and seller.get("address_lat") is not None and seller.get("address_lng") is not None:
+            seller_lat = seller["address_lat"]
+            seller_lng = seller["address_lng"]
+            break
+
+    # --- Delivery Charge Engine (Point 1) ---
+    breakdown = calculate_delivery_charge(
+        rules=rules,
+        items=[i.model_dump() for i in body.items],
+        products_by_id=prods,
+        customer_lat=body.delivery_lat,
+        customer_lng=body.delivery_lng,
+        seller_lat=seller_lat,
+        seller_lng=seller_lng,
+        order_subtotal=subtotal,
+    )
+    if breakdown.get("reject"):
+        # Per PRD: exact customer-facing message
+        raise HTTPException(status_code=400, detail=breakdown["message"])
+    delivery_charge = float(breakdown["final_delivery_charge"])
+
+    # --- Per-product commission (Category-Based Dynamic Commission Module) ---
     commission = 0.0
     enriched_items: list[dict] = []
     for i in body.items:
@@ -89,8 +185,9 @@ async def create_order(
         "items": enriched_items,
         "subtotal": subtotal,
         "delivery_charge": delivery_charge,
+        "delivery_breakdown": breakdown,  # Full step-by-step breakdown for Customer App
         "commission": commission,
-        "total": subtotal + delivery_charge,
+        "total": round(subtotal + delivery_charge, 2),
         "delivery_address": body.delivery_address,
         "delivery_lat": body.delivery_lat,
         "delivery_lng": body.delivery_lng,

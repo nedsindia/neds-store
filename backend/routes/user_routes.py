@@ -68,6 +68,8 @@ async def create_user(body: UserCreate, current_user: dict = Depends(require_adm
         "role": body.role,
         "email": body.email,
         "address": body.address,
+        "address_lat": body.address_lat,
+        "address_lng": body.address_lng,
         "active": body.active,
         "created_at": utcnow(),
         "updated_at": utcnow(),
