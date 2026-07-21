@@ -79,7 +79,9 @@ Frontend Rules page renders all 3 sections correctly (screenshot verified).
 - **Point 1 — Enterprise Delivery Charge Engine** ✅
 - **Point 2 — Enterprise Payment Configuration Module** ✅ (with 6 admin refinements: strict UPI validation, single-primary-across-all, masked account-numbers in list & full via audit-logged detail endpoint, granular audit events for create/edit/enable/disable/set-primary/delete/view_full, canonical txn field names, prominent placeholder banner)
 - **Point 24 — PhonePe Payment Gateway Integration** ✅ (this turn, placeholder mode)
-- Points 3–23 pending, will be added one by one in subsequent turns.
+- **Point 3 — Enterprise Seller Financial Dashboard & Settlement Engine** ✅ (this turn) — auto seller_earnings on delivery-verify, per-seller pending/settled dashboard, settlement bundling, mark-paid
+- **Point 4 — Enterprise Rider Dashboard & Settlement Engine** ✅ (this turn) — 4 payment models (per_delivery, per_km, hybrid, salary), daily bonus after N deliveries, today/week KPIs, settlement bundling & mark-paid
+- Points 5–23 (excluding 24 which is done) pending.
 - **Full testing_agent regression will run after all 24 modules are complete, per user directive.**
 
 ## Phase 2 — Android App (planned)

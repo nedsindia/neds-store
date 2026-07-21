@@ -39,6 +39,15 @@ async def create_indexes():
     await db.payment_transactions.create_index("merchant_order_id", unique=True)
     await db.payment_transactions.create_index([("gateway", 1), ("idempotency_key", 1)])
     await db.payment_transactions.create_index("linked_order_id")
+    # Settlements (Points 3 & 4)
+    await db.seller_earnings.create_index("seller_id")
+    await db.seller_earnings.create_index("order_id", unique=True)
+    await db.seller_earnings.create_index([("seller_id", 1), ("status", 1)])
+    await db.rider_earnings.create_index("rider_id")
+    await db.rider_earnings.create_index("order_id", unique=True)
+    await db.rider_earnings.create_index([("rider_id", 1), ("status", 1)])
+    await db.seller_settlements.create_index("entity_id")
+    await db.rider_settlements.create_index("entity_id")
 
 
 def close_client():

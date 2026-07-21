@@ -14,6 +14,8 @@ const TITLES: Record<string, string> = {
   "/admin/categories": "Categories",
   "/admin/payments": "Payments & Refunds",
   "/admin/payment-config": "Payment Configuration",
+  "/admin/seller-earnings": "Seller Earnings & Settlements",
+  "/admin/rider-earnings": "Rider Earnings & Settlements",
   "/admin/rules": "Business Rules Engine",
   "/admin/verifications": "Delivery Verification Logs",
   "/admin/audit": "Audit Logs",

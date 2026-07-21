@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
 
+import { Select } from "@/src/components/Select";
 import { Button } from "@/src/components/Button";
 import { Input } from "@/src/components/Input";
 import { api } from "@/src/api/client";
@@ -30,7 +31,22 @@ type Rules = {
   weight_charge_rules: WeightSlab[];
   default_seller_lat: number;
   default_seller_lng: number;
+  // Rider Payment Model (Point 4)
+  rider_payment_model: string;
+  rider_base_pay: number;
+  rider_per_km_pay: number;
+  rider_bonus_per_delivery_after: number;
+  rider_bonus_amount: number;
+  rider_monthly_salary: number;
 };
+
+const RIDER_FIELDS: { key: keyof Rules; label: string; suffix: string; hint: string }[] = [
+  { key: "rider_base_pay", label: "Base Pay per Delivery", suffix: "₹", hint: "Flat amount paid per delivery (used in per_delivery and hybrid models)." },
+  { key: "rider_per_km_pay", label: "Per KM Pay", suffix: "₹", hint: "Multiplied by delivery distance (used in per_km and hybrid models)." },
+  { key: "rider_bonus_per_delivery_after", label: "Bonus Threshold (deliveries/day)", suffix: "", hint: "Riders earn the bonus below on every delivery AFTER this daily count." },
+  { key: "rider_bonus_amount", label: "Bonus Amount", suffix: "₹", hint: "Bonus added to each qualifying delivery." },
+  { key: "rider_monthly_salary", label: "Monthly Salary", suffix: "₹", hint: "Fixed salary (used only for the salary model — per-delivery earning is 0)." },
+];
 
 const GENERAL_FIELDS: { key: keyof Rules; label: string; suffix?: string; hint?: string; numeric?: boolean }[] = [
   { key: "commission_percent", label: "Fallback Global Commission", suffix: "%", numeric: true, hint: "Used only when a legacy product has no per-product commission set." },
@@ -62,6 +78,7 @@ export default function RulesPage() {
   const [form, setForm] = useState<Record<string, string>>({});
   const [slabs, setSlabs] = useState<WeightSlab[]>([]);
   const [freeEnabled, setFreeEnabled] = useState(true);
+  const [riderModel, setRiderModel] = useState("hybrid");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -71,10 +88,11 @@ export default function RulesPage() {
       const r = await api<Rules>("/business-rules");
       setRules(r);
       const f: Record<string, string> = {};
-      [...GENERAL_FIELDS, ...DELIVERY_FIELDS].forEach((fd) => { f[fd.key as string] = String((r as any)[fd.key] ?? ""); });
+      [...GENERAL_FIELDS, ...DELIVERY_FIELDS, ...RIDER_FIELDS].forEach((fd) => { f[fd.key as string] = String((r as any)[fd.key] ?? ""); });
       setForm(f);
       setSlabs(Array.isArray(r.weight_charge_rules) ? r.weight_charge_rules : []);
       setFreeEnabled(!!r.is_free_delivery_enabled);
+      setRiderModel(r.rider_payment_model || "hybrid");
     } catch (e: any) { toast.error(e.message); }
     finally { setLoading(false); }
   }, []);
@@ -113,6 +131,14 @@ export default function RulesPage() {
     if (freeEnabled && body.free_delivery_threshold <= 0) {
       toast.error("Free Delivery Threshold must be greater than 0 when free delivery is enabled");
       return;
+    }
+
+    // Rider Payment Model (Point 4)
+    body.rider_payment_model = riderModel;
+    for (const fd of RIDER_FIELDS) {
+      const n = num(form[fd.key as string]);
+      if (n == null || n < 0) { toast.error(`${fd.label} must be a valid non-negative number`); return; }
+      body[fd.key] = n;
     }
 
     // Weight slabs — validate & serialise
@@ -248,6 +274,51 @@ export default function RulesPage() {
         ))}
 
         <Button size="sm" variant="outline" title="+ Add Slab" onPress={addSlab} style={{ alignSelf: "flex-start" }} testID="add-slab-button" />
+      </View>
+
+      {/* --- Enterprise Rider Payment Model (Point 4) --- */}
+      <View style={styles.card}>
+        <View style={styles.cardHead}>
+          <View style={styles.sectionIcon}><Feather name="user" size={16} color={theme.colors.primary} /></View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.cardTitle}>Enterprise Rider Payment Model</Text>
+            <Text style={styles.cardSub}>Drives per-delivery earnings for every rider. Applied automatically the moment a delivery is verified. Changing the model affects future deliveries only.</Text>
+          </View>
+        </View>
+
+        <View style={{ maxWidth: 320 }}>
+          <Select
+            label="Payment Model"
+            value={riderModel}
+            onChange={setRiderModel}
+            options={[
+              { label: "Per Delivery (flat base only)", value: "per_delivery" },
+              { label: "Per KM (distance only)", value: "per_km" },
+              { label: "Hybrid (base + per-km)", value: "hybrid" },
+              { label: "Salary (fixed monthly, ₹0 per delivery)", value: "salary" },
+            ]}
+            testID="rider-model-select"
+          />
+        </View>
+
+        <View style={styles.grid}>
+          {RIDER_FIELDS.map((f) => (
+            <View key={f.key as string} style={styles.field}>
+              <View style={styles.row}>
+                <Input
+                  label={f.label}
+                  value={form[f.key as string] || ""}
+                  onChangeText={(v) => setForm({ ...form, [f.key as string]: v })}
+                  keyboardType="decimal-pad"
+                  containerStyle={{ flex: 1 }}
+                  testID={`rules-${f.key}`}
+                />
+                {f.suffix ? <Text style={styles.suffix}>{f.suffix}</Text> : null}
+              </View>
+              <Text style={styles.hint}>{f.hint}</Text>
+            </View>
+          ))}
+        </View>
       </View>
 
       {/* --- General settings --- */}

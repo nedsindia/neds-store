@@ -42,6 +42,13 @@ DEFAULT_RULES = {
     "cod_limit": 5000.0,
     "upi_intent_enabled": True,
     "phonepe_enabled": True,
+    # Enterprise Rider Payment Model (Point 4)
+    "rider_payment_model": "hybrid",
+    "rider_base_pay": 20.0,
+    "rider_per_km_pay": 5.0,
+    "rider_bonus_per_delivery_after": 15,
+    "rider_bonus_amount": 50.0,
+    "rider_monthly_salary": 15000.0,
 }
 
 SEED_CATEGORIES = [

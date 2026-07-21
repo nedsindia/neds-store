@@ -211,6 +211,14 @@ class BusinessRulesUpdate(BaseModel):
     upi_intent_enabled: bool | None = None
     phonepe_enabled: bool | None = None
 
+    # Enterprise Rider Payment Model (Point 4)
+    rider_payment_model: str | None = None  # per_delivery | per_km | hybrid | salary
+    rider_base_pay: float | None = None
+    rider_per_km_pay: float | None = None
+    rider_bonus_per_delivery_after: int | None = None  # trigger after N deliveries in a day
+    rider_bonus_amount: float | None = None
+    rider_monthly_salary: float | None = None  # for salary model
+
 
 # ---------- Payment Accounts (Point 2) ----------
 class PaymentAccountCreate(BaseModel):
@@ -248,6 +256,21 @@ class PhonePeCreateOrderRequest(BaseModel):
     idempotency_key: str
     meta: dict | None = None
     redirect_url: str | None = None  # where PhonePe should redirect after payment
+
+
+# ---------- Settlement Engine (Points 3 & 4) ----------
+class SettlementCreate(BaseModel):
+    entity_id: str  # seller_id or rider_id
+    period_start: str | None = None  # ISO date; if None, "all pending"
+    period_end: str | None = None
+    payout_method: str | None = None  # bank | upi
+    payout_reference: str | None = None
+    notes: str | None = None
+
+
+class SettlementMarkPaid(BaseModel):
+    payout_reference: str | None = None
+    notes: str | None = None
 
 
 class RefundRequest(BaseModel):

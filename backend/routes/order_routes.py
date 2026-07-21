@@ -495,6 +495,19 @@ async def verify_delivery(
          "$push": {"status_history": {"status": "delivered", "at": now, "by": current_user["id"]}}},
     )
     await log_event(current_user, "delivery.verified", "delivery", delivery_id, {"order_id": delivery["order_id"]})
+
+    # Auto-create seller & rider earnings (Points 3 & 4)
+    try:
+        from routes.settlement_routes import create_earnings_for_delivered_order
+        fresh_order = await db.orders.find_one({"id": delivery["order_id"]}, {"_id": 0})
+        fresh_delivery = await db.deliveries.find_one({"id": delivery_id}, {"_id": 0})
+        earnings = await create_earnings_for_delivered_order(db, fresh_order, fresh_delivery)
+        verification_record["seller_earnings_created"] = len(earnings.get("seller_earnings", []))
+        verification_record["rider_earning_created"] = bool(earnings.get("rider_earning"))
+    except Exception as _e:
+        # Never let settlement creation break the delivery-verify flow
+        pass
+
     return {"ok": True, "verification": verification_record}
 
 
