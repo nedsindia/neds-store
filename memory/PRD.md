@@ -77,7 +77,7 @@ Frontend Rules page renders all 3 sections correctly (screenshot verified).
 
 ## Phase 1 Improvement Points (from user's 24-point doc)
 - **Point 1 — Enterprise Delivery Charge Engine** ✅
-- **Point 2 — Enterprise Payment Configuration Module** ✅ (this turn)
+- **Point 2 — Enterprise Payment Configuration Module** ✅ (with 6 admin refinements: strict UPI validation, single-primary-across-all, masked account-numbers in list & full via audit-logged detail endpoint, granular audit events for create/edit/enable/disable/set-primary/delete/view_full, canonical txn field names, prominent placeholder banner)
 - **Point 24 — PhonePe Payment Gateway Integration** ✅ (this turn, placeholder mode)
 - Points 3–23 pending, will be added one by one in subsequent turns.
 - **Full testing_agent regression will run after all 24 modules are complete, per user directive.**

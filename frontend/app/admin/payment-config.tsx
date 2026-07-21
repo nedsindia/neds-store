@@ -79,19 +79,23 @@ export default function PaymentConfigPage() {
   useEffect(() => { load(); }, [load]);
 
   const openCreate = () => { setForm(EMPTY_FORM); setModal(true); };
-  const openEdit = (a: PaymentAccount) => {
-    setForm({
-      id: a.id,
-      type: a.type,
-      holder_name: a.holder_name,
-      bank_name: a.bank_name || "",
-      account_number: a.account_number || "",
-      ifsc: a.ifsc || "",
-      upi_id: a.upi_id || "",
-      label: a.label || "",
-      is_primary: a.is_primary,
-    });
-    setModal(true);
+  const openEdit = async (a: PaymentAccount) => {
+    // Fetch FULL details (unmasked account number) — list view is masked for safety
+    try {
+      const full = await api<PaymentAccount>(`/payment-accounts/${a.id}`);
+      setForm({
+        id: full.id,
+        type: full.type,
+        holder_name: full.holder_name,
+        bank_name: full.bank_name || "",
+        account_number: full.account_number || "",
+        ifsc: full.ifsc || "",
+        upi_id: full.upi_id || "",
+        label: full.label || "",
+        is_primary: full.is_primary,
+      });
+      setModal(true);
+    } catch (e: any) { toast.error(e.message); }
   };
 
   const submit = async () => {
@@ -135,7 +139,7 @@ export default function PaymentConfigPage() {
   const setPrimary = async (a: PaymentAccount) => {
     try {
       await api(`/payment-accounts/${a.id}/set-primary`, { method: "POST" });
-      toast.success(`${a.label || a.holder_name} is now the primary ${a.type.toUpperCase()} account`);
+      toast.success(`${a.label || a.holder_name} is now the primary payment account`);
       load();
     } catch (e: any) { toast.error(e.message); }
   };
@@ -208,6 +212,20 @@ export default function PaymentConfigPage() {
             Configure which payment methods are available to customers, set the Cash on Delivery limit,
             and manage the company&apos;s bank &amp; UPI accounts used for settlements. The customer app
             only shows methods that are enabled here.
+          </Text>
+        </View>
+      </View>
+
+      {/* Prominent admin note — PhonePe placeholder mode (Point 6) */}
+      <View style={styles.warnBanner} testID="phonepe-placeholder-banner">
+        <Feather name="alert-circle" size={16} color="#92400E" />
+        <View style={{ flex: 1 }}>
+          <Text style={styles.warnTitle}>PhonePe Gateway is running in PLACEHOLDER MODE</Text>
+          <Text style={styles.warnSub}>
+            Live PhonePe merchant credentials have not been configured yet. The gateway currently
+            returns a synthetic checkout URL and auto-completes test payments after ~5 seconds so
+            the checkout flow can be validated end-to-end. Live credentials will be added later —
+            no code change will be required.
           </Text>
         </View>
       </View>
@@ -286,7 +304,7 @@ export default function PaymentConfigPage() {
           <View style={styles.sectionIcon}><Feather name="credit-card" size={16} color={theme.colors.primary} /></View>
           <View style={{ flex: 1 }}>
             <Text style={styles.cardTitle}>Company Bank &amp; UPI Accounts</Text>
-            <Text style={styles.cardSub}>Settlement receiving accounts. Exactly one primary per type (Bank / UPI) — used automatically for that method&apos;s payouts.</Text>
+            <Text style={styles.cardSub}>Settlement receiving accounts. **Only ONE primary account is allowed across all types** — it&apos;s the one used for automated payouts. Account numbers are shown masked (XXXXXXXX1234) in this list; the full value is available in the Edit modal (view is audit-logged).</Text>
           </View>
           <Button title="+ Add Account" onPress={openCreate} testID="add-account-button" />
         </View>
@@ -319,8 +337,8 @@ export default function PaymentConfigPage() {
         )}
         <View style={styles.primaryToggle}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.methodTitle}>Set as Primary {form.type.toUpperCase()}</Text>
-            <Text style={styles.methodSub}>Auto-demotes the previous primary account of the same type.</Text>
+            <Text style={styles.methodTitle}>Set as Primary Payment Account</Text>
+            <Text style={styles.methodSub}>Only ONE payment account can be primary at a time across all accounts. Enabling this will auto-demote any other primary.</Text>
           </View>
           <Switch
             value={form.is_primary}
@@ -347,6 +365,13 @@ const styles = StyleSheet.create({
   },
   bannerTitle: { fontFamily: theme.fonts.heading, fontWeight: "700", color: "#065F46", fontSize: 14 },
   bannerSub: { fontFamily: theme.fonts.body, color: "#065F46", fontSize: 12, marginTop: 2, lineHeight: 18 },
+  warnBanner: {
+    flexDirection: "row", gap: 12, padding: 16,
+    borderRadius: theme.radius.md, backgroundColor: "#FEF3C7",
+    borderWidth: 1, borderColor: "#FDE68A",
+  },
+  warnTitle: { fontFamily: theme.fonts.heading, fontWeight: "700", color: "#92400E", fontSize: 14 },
+  warnSub: { fontFamily: theme.fonts.body, color: "#92400E", fontSize: 12, marginTop: 2, lineHeight: 18 },
   card: {
     backgroundColor: "#fff",
     borderWidth: 1, borderColor: theme.colors.border,

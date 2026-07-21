@@ -31,6 +31,33 @@ router = APIRouter(tags=["payments"])
 
 
 # ============================================================ PAYMENT ACCOUNTS (Point 2)
+# Stricter UPI validation per NPCI/BHIM spec:
+# handle 3-20 chars (letters/digits/., -, _), followed by @, then a valid PSP handle
+_UPI_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9._-]{2,19}@[a-zA-Z][a-zA-Z0-9]{1,20}$")
+_IFSC_RE = re.compile(r"^[A-Z]{4}0[A-Z0-9]{6}$")
+
+
+def _mask_account_number(num: str | None) -> str | None:
+    """XXXXXXXX1234 style masking for admin list views."""
+    if not num:
+        return num
+    if len(num) <= 4:
+        return num
+    return "X" * (len(num) - 4) + num[-4:]
+
+
+def _redact(doc: dict) -> dict:
+    """Return an admin-list-safe copy of a payment_account doc."""
+    if not doc:
+        return doc
+    out = {**doc}
+    out.pop("_id", None)
+    if out.get("type") == "bank":
+        out["account_number_masked"] = _mask_account_number(out.get("account_number"))
+        out["account_number"] = out["account_number_masked"]
+    return out
+
+
 def _validate_account(body: PaymentAccountCreate | PaymentAccountUpdate, is_create: bool = False):
     t = getattr(body, "type", None)
     if is_create and t not in ("bank", "upi"):
@@ -38,15 +65,15 @@ def _validate_account(body: PaymentAccountCreate | PaymentAccountUpdate, is_crea
     if t == "bank":
         if is_create and not (body.account_number and body.ifsc and body.bank_name):
             raise HTTPException(status_code=400, detail="Bank account requires account_number, ifsc, bank_name")
-        if body.ifsc and not re.match(r"^[A-Z]{4}0[A-Z0-9]{6}$", body.ifsc):
+        if body.ifsc and not _IFSC_RE.match(body.ifsc):
             raise HTTPException(status_code=400, detail="Invalid IFSC — must be 11 chars matching ^[A-Z]{4}0[A-Z0-9]{6}$")
         if body.account_number and not (6 <= len(body.account_number) <= 20 and body.account_number.isdigit()):
             raise HTTPException(status_code=400, detail="Bank account_number must be 6-20 digits")
     if t == "upi":
         if is_create and not body.upi_id:
             raise HTTPException(status_code=400, detail="UPI account requires upi_id")
-        if body.upi_id and not re.match(r"^[\w\.\-]+@[\w\.\-]+$", body.upi_id):
-            raise HTTPException(status_code=400, detail="Invalid UPI id — expected format name@handle")
+        if body.upi_id and not _UPI_RE.match(body.upi_id):
+            raise HTTPException(status_code=400, detail="Invalid UPI ID — expected format name@bank (e.g. rakesh@okicici, 9999999999@paytm)")
 
 
 @router.get("/payment-accounts")
@@ -62,7 +89,20 @@ async def list_payment_accounts(
     if active is not None:
         filt["active"] = active
     items = await db.payment_accounts.find(filt, {"_id": 0}).sort("created_at", -1).to_list(200)
-    return {"items": items}
+    # Admin list ALWAYS returns masked account numbers
+    return {"items": [_redact(a) for a in items]}
+
+
+@router.get("/payment-accounts/{acct_id}")
+async def get_payment_account(acct_id: str, current_user: dict = Depends(require_admin)):
+    """Detail endpoint returns the FULL account_number (needed by the Edit modal).
+    Access is audit-logged so every full-view is traceable."""
+    db = get_db()
+    acct = await db.payment_accounts.find_one({"id": acct_id}, {"_id": 0})
+    if not acct:
+        raise HTTPException(status_code=404, detail="Payment account not found")
+    await log_event(current_user, "payment_account.view_full", "payment_account", acct_id)
+    return acct
 
 
 @router.post("/payment-accounts", status_code=201)
@@ -83,13 +123,15 @@ async def create_payment_account(body: PaymentAccountCreate, current_user: dict 
         "created_at": utcnow(),
         "updated_at": utcnow(),
     }
-    # If marked primary, unset primary on all other accounts of the SAME TYPE
+    # Only ONE primary payment account TOTAL (per user directive)
     if doc["is_primary"]:
-        await db.payment_accounts.update_many({"type": doc["type"]}, {"$set": {"is_primary": False, "updated_at": utcnow()}})
+        await db.payment_accounts.update_many({}, {"$set": {"is_primary": False, "updated_at": utcnow()}})
     await db.payment_accounts.insert_one(doc)
-    doc.pop("_id", None)
-    await log_event(current_user, "payment_account.create", "payment_account", doc["id"], {"type": doc["type"]})
-    return doc
+    await log_event(
+        current_user, "payment_account.create", "payment_account", doc["id"],
+        {"type": doc["type"], "label": doc.get("label"), "is_primary": doc["is_primary"]},
+    )
+    return _redact(doc)
 
 
 @router.patch("/payment-accounts/{acct_id}")
@@ -99,31 +141,45 @@ async def update_payment_account(acct_id: str, body: PaymentAccountUpdate, curre
     existing = await db.payment_accounts.find_one({"id": acct_id})
     if not existing:
         raise HTTPException(status_code=404, detail="Payment account not found")
+
     updates = {k: v for k, v in body.model_dump(exclude_unset=True).items() if v is not None}
     if "ifsc" in updates and updates["ifsc"]:
         updates["ifsc"] = updates["ifsc"].upper()
+
+    # Track transitions for granular audit events (enable/disable/set-primary)
+    events: list[tuple[str, dict]] = []
+    if "active" in updates and bool(updates["active"]) != bool(existing.get("active", True)):
+        events.append(("payment_account.enable" if updates["active"] else "payment_account.disable", {}))
     if updates.get("is_primary"):
+        # Only ONE primary across ALL payment accounts
         await db.payment_accounts.update_many(
-            {"type": existing["type"], "id": {"$ne": acct_id}},
+            {"id": {"$ne": acct_id}},
             {"$set": {"is_primary": False, "updated_at": utcnow()}},
         )
+        if not existing.get("is_primary"):
+            events.append(("payment_account.set_primary", {}))
+
     updates["updated_at"] = utcnow()
     await db.payment_accounts.update_one({"id": acct_id}, {"$set": updates})
+
+    # Always log the generic update (with the changed field list); plus any transition events above
     await log_event(current_user, "payment_account.update", "payment_account", acct_id, {"fields": list(updates.keys())})
-    return await db.payment_accounts.find_one({"id": acct_id}, {"_id": 0})
+    for act, meta in events:
+        await log_event(current_user, act, "payment_account", acct_id, meta)
+
+    return _redact(await db.payment_accounts.find_one({"id": acct_id}, {"_id": 0}))
 
 
 @router.post("/payment-accounts/{acct_id}/set-primary")
 async def set_primary_account(acct_id: str, current_user: dict = Depends(require_admin)):
-    """Convenience endpoint — flips the primary flag on this account and turns
-    it off on all other accounts of the same type."""
+    """Only ONE primary payment account is allowed across ALL types."""
     db = get_db()
     acct = await db.payment_accounts.find_one({"id": acct_id}, {"_id": 0})
     if not acct:
         raise HTTPException(status_code=404, detail="Payment account not found")
-    await db.payment_accounts.update_many(
-        {"type": acct["type"]}, {"$set": {"is_primary": False, "updated_at": utcnow()}},
-    )
+    if not acct.get("active", True):
+        raise HTTPException(status_code=400, detail="Cannot make an inactive account primary — enable it first")
+    await db.payment_accounts.update_many({}, {"$set": {"is_primary": False, "updated_at": utcnow()}})
     await db.payment_accounts.update_one({"id": acct_id}, {"$set": {"is_primary": True, "updated_at": utcnow()}})
     await log_event(current_user, "payment_account.set_primary", "payment_account", acct_id)
     return {"ok": True, "primary_id": acct_id}
@@ -138,7 +194,8 @@ async def deactivate_payment_account(acct_id: str, current_user: dict = Depends(
     )
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Payment account not found")
-    await log_event(current_user, "payment_account.deactivate", "payment_account", acct_id)
+    # Full-fledged audit: distinguish "delete" (soft) from "disable" so the log tells the story
+    await log_event(current_user, "payment_account.delete", "payment_account", acct_id)
     return {"ok": True}
 
 
@@ -368,4 +425,18 @@ async def list_phonepe_txns(
     if status:
         filt["status"] = status.upper()
     items = await db.payment_transactions.find(filt, {"_id": 0}).sort("created_at", -1).limit(limit).to_list(limit)
-    return {"items": items, "total": len(items)}
+    # Decorate with the user-approved public field names (Point 5)
+    decorated = [
+        {
+            **t,
+            "order_id": t.get("linked_order_id"),
+            "transaction_id": t.get("id"),
+            "amount": t.get("amount_inr"),
+            "payment_method": t.get("gateway"),
+            "payment_status": t.get("status"),
+            "created_time": t.get("created_at"),
+            "updated_time": t.get("updated_at"),
+        }
+        for t in items
+    ]
+    return {"items": decorated, "total": len(decorated)}
