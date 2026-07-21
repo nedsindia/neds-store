@@ -20,6 +20,7 @@ from routes.admin_routes import router as admin_router  # noqa: E402
 from routes.auth_routes import router as auth_router  # noqa: E402
 from routes.catalog_routes import router as catalog_router  # noqa: E402
 from routes.order_routes import router as order_router  # noqa: E402
+from routes.payment_routes import router as payment_router  # noqa: E402
 from routes.user_routes import router as user_router  # noqa: E402
 from seed import seed_all  # noqa: E402
 
@@ -56,6 +57,7 @@ api_router.include_router(auth_router)
 api_router.include_router(user_router)
 api_router.include_router(catalog_router)
 api_router.include_router(order_router)
+api_router.include_router(payment_router)
 api_router.include_router(admin_router)
 
 app.include_router(api_router)

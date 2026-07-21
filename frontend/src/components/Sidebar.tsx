@@ -13,6 +13,7 @@ const ITEMS: { href: string; label: string; icon: any }[] = [
   { href: "/admin/products", label: "Products", icon: "box" },
   { href: "/admin/categories", label: "Categories", icon: "layers" },
   { href: "/admin/payments", label: "Payments", icon: "credit-card" },
+  { href: "/admin/payment-config", label: "Payment Config", icon: "settings" },
   { href: "/admin/rules", label: "Business Rules", icon: "sliders" },
   { href: "/admin/verifications", label: "Delivery Logs", icon: "check-circle" },
   { href: "/admin/audit", label: "Audit Logs", icon: "file-text" },

@@ -199,8 +199,68 @@ async def create_order(
         "updated_at": utcnow(),
         "status_history": [{"status": "placed", "at": utcnow(), "by": current_user["id"]}],
     }
+
+    # -- COD limit enforcement (Point 2) --
+    if body.payment_method == "cod":
+        cod_enabled = bool(rules.get("cod_enabled", True))
+        cod_limit = float(rules.get("cod_limit", 0) or 0)
+        if not cod_enabled:
+            raise HTTPException(status_code=400, detail="Cash on Delivery is currently disabled")
+        if cod_limit > 0 and order["total"] > cod_limit:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Cash on Delivery limit is ₹{cod_limit:.0f}. Please choose UPI or PhonePe for orders above this amount.",
+            )
+
+    # -- Payment method enable checks --
+    if body.payment_method == "upi" and not bool(rules.get("upi_intent_enabled", True)):
+        raise HTTPException(status_code=400, detail="UPI Intent payments are currently disabled")
+    if body.payment_method == "phonepe" and not bool(rules.get("phonepe_enabled", True)):
+        raise HTTPException(status_code=400, detail="PhonePe payments are currently disabled")
     await db.orders.insert_one(order)
     order.pop("_id", None)
+
+    # -- Auto-initiate PhonePe transaction when payment_method=phonepe (Point 24) --
+    if body.payment_method == "phonepe":
+        from uuid import uuid4
+        from phonepe_gateway import gateway as phonepe_gw, to_paise
+        merchant_order_id = f"NEDS_{uuid4().hex[:20]}"
+        pp_resp = await phonepe_gw.create_order(
+            merchant_order_id=merchant_order_id,
+            amount_paise=to_paise(order["total"]),
+            redirect_url=f"neds://payments/return?order={merchant_order_id}",
+            meta_info={"neds_order_id": order_id},
+        )
+        now = utcnow()
+        txn = {
+            "id": new_id(),
+            "gateway": "phonepe",
+            "merchant_order_id": merchant_order_id,
+            "phonepe_order_id": pp_resp.get("orderId"),
+            "linked_order_id": order_id,
+            "customer_id": customer_id,
+            "amount_paise": to_paise(order["total"]),
+            "amount_inr": order["total"],
+            "currency": "INR",
+            "status": (pp_resp.get("state") or "PENDING").upper(),
+            "checkout_url": pp_resp.get("redirectUrl"),
+            "redirect_url": f"neds://payments/return?order={merchant_order_id}",
+            "idempotency_key": f"order-{order_id}",
+            "metadata": {"neds_order_id": order_id},
+            "gateway_response": pp_resp,
+            "placeholder_mode": bool(pp_resp.get("_placeholder")),
+            "refunds": [],
+            "created_at": now,
+            "updated_at": now,
+        }
+        await db.payment_transactions.insert_one(txn)
+        await db.orders.update_one(
+            {"id": order_id},
+            {"$set": {"payment_gateway": "phonepe", "payment_gateway_txn_id": txn["id"], "updated_at": now}},
+        )
+        order["payment_gateway"] = "phonepe"
+        order["phonepe_checkout_url"] = txn["checkout_url"]
+        order["phonepe_merchant_order_id"] = merchant_order_id
 
     # Create pending delivery record
     delivery = {

@@ -37,6 +37,11 @@ DEFAULT_RULES = {
     ],
     "default_seller_lat": 12.9716,
     "default_seller_lng": 77.5946,
+    # Enterprise Payment Configuration (Point 2)
+    "cod_enabled": True,
+    "cod_limit": 5000.0,
+    "upi_intent_enabled": True,
+    "phonepe_enabled": True,
 }
 
 SEED_CATEGORIES = [
@@ -143,8 +148,49 @@ async def backfill_products():
     )
 
 
+async def seed_payment_accounts():
+    """Seed one demo UPI + one demo bank account so admin panel has data on first run.
+    Idempotent — skipped if any account already exists."""
+    db = get_db()
+    if await db.payment_accounts.count_documents({}) > 0:
+        return
+    now = utcnow()
+    await db.payment_accounts.insert_many([
+        {
+            "id": new_id(),
+            "type": "upi",
+            "holder_name": "NEDS STORE PVT LTD",
+            "bank_name": None,
+            "account_number": None,
+            "ifsc": None,
+            "upi_id": "nedsstore@okicici",
+            "label": "Primary UPI",
+            "is_primary": True,
+            "active": True,
+            "created_at": now,
+            "updated_at": now,
+        },
+        {
+            "id": new_id(),
+            "type": "bank",
+            "holder_name": "NEDS STORE PVT LTD",
+            "bank_name": "ICICI Bank",
+            "account_number": "123456789012",
+            "ifsc": "ICIC0001234",
+            "upi_id": None,
+            "label": "Primary Current Account",
+            "is_primary": True,
+            "active": True,
+            "created_at": now,
+            "updated_at": now,
+        },
+    ])
+    logger.info("Seeded 2 default payment accounts")
+
+
 async def seed_all():
     await seed_super_admin()
     await seed_rules()
     await seed_categories()
     await backfill_products()
+    await seed_payment_accounts()

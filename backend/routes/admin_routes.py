@@ -38,6 +38,11 @@ DEFAULT_RULES = {
     ],
     "default_seller_lat": 12.9716,
     "default_seller_lng": 77.5946,
+    # Enterprise Payment Configuration (Point 2)
+    "cod_enabled": True,
+    "cod_limit": 5000.0,
+    "upi_intent_enabled": True,
+    "phonepe_enabled": True,
 }
 
 

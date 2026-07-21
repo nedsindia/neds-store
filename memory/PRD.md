@@ -76,8 +76,11 @@ Frontend Rules page renders all 3 sections correctly (screenshot verified).
 - **Auth:** Mobile + Password only; OTP endpoints return 501 (architecture ready).
 
 ## Phase 1 Improvement Points (from user's 24-point doc)
-- **Point 1 — Enterprise Delivery Charge Engine** ✅ (this turn)
-- Points 2–24 pending, will be added one by one in subsequent turns.
+- **Point 1 — Enterprise Delivery Charge Engine** ✅
+- **Point 2 — Enterprise Payment Configuration Module** ✅ (this turn)
+- **Point 24 — PhonePe Payment Gateway Integration** ✅ (this turn, placeholder mode)
+- Points 3–23 pending, will be added one by one in subsequent turns.
+- **Full testing_agent regression will run after all 24 modules are complete, per user directive.**
 
 ## Phase 2 — Android App (planned)
 - Single Android app (`com.nedsstore.app`) with 4 role panels; UPI Intent + COD; Google Maps navigation; Delivery Verification Code UI (customer sees, rider enters); Seller product screen will reuse the same commission-range picker pattern.

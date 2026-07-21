@@ -34,6 +34,11 @@ async def create_indexes():
     await db.deliveries.create_index("rider_id")
     await db.audit_logs.create_index("created_at")
     await db.delivery_verifications.create_index("order_id", unique=True)
+    # Payment (Point 2 + 24)
+    await db.payment_accounts.create_index([("type", 1), ("is_primary", 1)])
+    await db.payment_transactions.create_index("merchant_order_id", unique=True)
+    await db.payment_transactions.create_index([("gateway", 1), ("idempotency_key", 1)])
+    await db.payment_transactions.create_index("linked_order_id")
 
 
 def close_client():

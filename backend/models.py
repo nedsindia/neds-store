@@ -205,6 +205,55 @@ class BusinessRulesUpdate(BaseModel):
     default_seller_lat: float | None = None
     default_seller_lng: float | None = None
 
+    # Enterprise Payment Configuration (Point 2)
+    cod_enabled: bool | None = None
+    cod_limit: float | None = None
+    upi_intent_enabled: bool | None = None
+    phonepe_enabled: bool | None = None
+
+
+# ---------- Payment Accounts (Point 2) ----------
+class PaymentAccountCreate(BaseModel):
+    type: str  # bank | upi
+    holder_name: str
+    # For bank accounts
+    bank_name: str | None = None
+    account_number: str | None = None
+    ifsc: str | None = None
+    # For UPI
+    upi_id: str | None = None
+    # Common
+    label: str | None = None
+    is_primary: bool = False
+    active: bool = True
+
+
+class PaymentAccountUpdate(BaseModel):
+    holder_name: str | None = None
+    bank_name: str | None = None
+    account_number: str | None = None
+    ifsc: str | None = None
+    upi_id: str | None = None
+    label: str | None = None
+    is_primary: bool | None = None
+    active: bool | None = None
+
+
+# ---------- PhonePe Gateway (Point 24) ----------
+class PhonePeCreateOrderRequest(BaseModel):
+    order_id: str | None = None  # Link to a NEDS order (optional; auto-created if not supplied)
+    amount_inr: float
+    customer_id: str | None = None
+    phone_number: str | None = None
+    idempotency_key: str
+    meta: dict | None = None
+    redirect_url: str | None = None  # where PhonePe should redirect after payment
+
+
+class RefundRequest(BaseModel):
+    amount_inr: float | None = None  # None = full refund
+    reason: str | None = None
+
 
 # ---------- Checkout preview ----------
 class CheckoutPreviewItem(BaseModel):
