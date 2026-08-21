@@ -101,3 +101,8 @@ __pycache__/
 # Test reports
 /test_reports/
 /app/test_reports/
+.env.*
+*.env
+credentials.json
+*.key
+.credentials

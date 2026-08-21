@@ -20,11 +20,13 @@ from routes.admin_routes import router as admin_router  # noqa: E402
 from routes.auth_routes import router as auth_router  # noqa: E402
 from routes.catalog_routes import router as catalog_router  # noqa: E402
 from routes.coupon_routes import router as coupon_router  # noqa: E402
+from routes.customer_routes import router as customer_router  # noqa: E402
 from routes.inventory_routes import router as inventory_router  # noqa: E402
 from routes.invoice_routes import router as invoice_router  # noqa: E402
 from routes.ops_routes import router as ops_router  # noqa: E402
 from routes.order_routes import router as order_router  # noqa: E402
 from routes.payment_routes import router as payment_router  # noqa: E402
+from routes.public_routes import router as public_router  # noqa: E402
 from routes.rbac_routes import router as rbac_router  # noqa: E402
 from routes.refund_routes import router as refund_router  # noqa: E402
 from routes.settlement_routes import router as settlement_router  # noqa: E402
@@ -71,6 +73,8 @@ api_router.include_router(payment_router)
 api_router.include_router(settlement_router)
 api_router.include_router(refund_router)
 api_router.include_router(coupon_router)
+api_router.include_router(customer_router)
+api_router.include_router(public_router)
 api_router.include_router(staff_router)
 api_router.include_router(ops_router)
 api_router.include_router(rbac_router)
