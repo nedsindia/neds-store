@@ -80,3 +80,24 @@ memory/test_credentials.md
 
 # Mobile development
 android-sdk/
+# ==== NEDS STORE — Env & secrets (added by Phase 1 completion) ====
+.env
+.env.local
+.env.*.local
+/backend/.env
+/frontend/.env
+!/backend/.env.example
+!/frontend/.env.example
+
+# Python bytecode / caches
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# MongoDB dumps / local backups
+*.bak
+/backups/
+
+# Test reports
+/test_reports/
+/app/test_reports/

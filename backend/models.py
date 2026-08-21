@@ -219,6 +219,15 @@ class BusinessRulesUpdate(BaseModel):
     rider_bonus_amount: float | None = None
     rider_monthly_salary: float | None = None  # for salary model
 
+    # Enterprise Tax / GST (Point 18)
+    gst_enabled: bool | None = None
+    default_gst_percentage: float | None = None
+    company_gst_number: str | None = None
+    company_pan: str | None = None
+    company_address: str | None = None
+    company_state: str | None = None
+    company_state_code: str | None = None
+
 
 # ---------- Payment Accounts (Point 2) ----------
 class PaymentAccountCreate(BaseModel):

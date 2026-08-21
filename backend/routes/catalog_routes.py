@@ -218,6 +218,7 @@ async def create_product(
         "price": body.price,
         "mrp": body.mrp or body.price,
         "stock": body.stock,
+        "low_stock_threshold": 5,
         "unit": body.unit,
         "image_base64": body.image_base64,
         "active": body.active,
@@ -230,6 +231,13 @@ async def create_product(
     }
     await db.products.insert_one(doc)
     doc.pop("_id", None)
+    # Stock movement log — initial stock
+    try:
+        from routes.inventory_routes import log_stock_movement
+        if body.stock > 0:
+            await log_stock_movement(db, current_user, doc["id"], "initial", 0, body.stock, reason="Initial stock on product creation")
+    except Exception:
+        pass
     await log_event(current_user, "product.create", "product", doc["id"], {
         "commission_percentage": body.commission_percentage,
     })

@@ -1,23 +1,47 @@
 import React from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { Link, usePathname } from "expo-router";
 import { theme } from "@/src/theme";
 import { useAuth } from "@/src/context/AuthContext";
 
-const ITEMS: { href: string; label: string; icon: any }[] = [
+const ITEMS: { href?: string; label: string; icon?: any; section?: boolean }[] = [
+  { section: true, label: "Overview" },
   { href: "/admin/dashboard", label: "Dashboard", icon: "grid" },
+
+  { section: true, label: "Operations" },
   { href: "/admin/orders", label: "Orders", icon: "shopping-bag" },
   { href: "/admin/deliveries", label: "Deliveries", icon: "truck" },
-  { href: "/admin/users", label: "Users", icon: "users" },
+  { href: "/admin/returns", label: "Returns & Refunds", icon: "corner-up-left" },
+  { href: "/admin/verifications", label: "Delivery Logs", icon: "check-circle" },
+
+  { section: true, label: "Catalog" },
   { href: "/admin/products", label: "Products", icon: "box" },
   { href: "/admin/categories", label: "Categories", icon: "layers" },
+  { href: "/admin/inventory", label: "Inventory", icon: "archive" },
+  { href: "/admin/coupons", label: "Coupons", icon: "tag" },
+
+  { section: true, label: "Finance" },
   { href: "/admin/payments", label: "Payments", icon: "credit-card" },
   { href: "/admin/payment-config", label: "Payment Config", icon: "settings" },
+  { href: "/admin/invoices", label: "Invoices", icon: "file-plus" },
   { href: "/admin/seller-earnings", label: "Seller Earnings", icon: "trending-up" },
   { href: "/admin/rider-earnings", label: "Rider Earnings", icon: "dollar-sign" },
+
+  { section: true, label: "People" },
+  { href: "/admin/users", label: "Users", icon: "users" },
+  { href: "/admin/staff", label: "Staff", icon: "user-check" },
+  { href: "/admin/kyc", label: "KYC Verification", icon: "user-check" },
+  { href: "/admin/rbac", label: "Roles & Permissions", icon: "shield" },
+
+  { section: true, label: "Operations Intel" },
+  { href: "/admin/reports", label: "Reports", icon: "bar-chart-2" },
+  { href: "/admin/tickets", label: "Support Tickets", icon: "life-buoy" },
+  { href: "/admin/zones", label: "Delivery Zones", icon: "map-pin" },
+  { href: "/admin/fraud", label: "Fraud Alerts", icon: "alert-triangle" },
+
+  { section: true, label: "Configuration" },
   { href: "/admin/rules", label: "Business Rules", icon: "sliders" },
-  { href: "/admin/verifications", label: "Delivery Logs", icon: "check-circle" },
   { href: "/admin/audit", label: "Audit Logs", icon: "file-text" },
 ];
 
@@ -38,12 +62,21 @@ export function Sidebar() {
       </View>
 
       <View style={styles.nav}>
-        {ITEMS.map((item) => {
-          const active = pathname.startsWith(item.href);
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 2 }}>
+        {ITEMS.map((item, idx) => {
+          if (item.section) {
+            return (
+              <Text key={`sec-${idx}`} style={styles.sectionLabel}>
+                {item.label}
+              </Text>
+            );
+          }
+          const href = item.href!;
+          const active = pathname.startsWith(href);
           return (
-            <Link key={item.href} href={item.href as any} asChild>
+            <Link key={href} href={href as any} asChild>
               <Pressable
-                testID={`nav-${item.href.split("/").pop()}`}
+                testID={`nav-${href.split("/").pop()}`}
                 style={({ hovered }) => [
                   styles.navItem,
                   active && styles.navItemActive,
@@ -61,6 +94,7 @@ export function Sidebar() {
             </Link>
           );
         })}
+        </ScrollView>
       </View>
 
       <View style={styles.userBox}>
@@ -129,6 +163,17 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 12,
     gap: 2,
+  },
+  sectionLabel: {
+    color: "#71717A",
+    fontFamily: theme.fonts.heading,
+    fontSize: 10,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 1,
+    paddingHorizontal: 12,
+    paddingTop: 14,
+    paddingBottom: 6,
   },
   navItem: {
     flexDirection: "row",

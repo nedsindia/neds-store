@@ -220,6 +220,26 @@ async def create_order(
     await db.orders.insert_one(order)
     order.pop("_id", None)
 
+    # -- Deduct stock on order placement (Point 17) --
+    try:
+        from routes.inventory_routes import log_stock_movement
+        for i in body.items:
+            p = prods.get(i.product_id)
+            if not p:
+                continue
+            full = await db.products.find_one({"id": i.product_id}, {"_id": 0, "stock": 1})
+            if not full:
+                continue
+            prev = int(full.get("stock", 0) or 0)
+            new_stock = max(0, prev - i.qty)
+            await db.products.update_one({"id": i.product_id}, {"$set": {"stock": new_stock, "updated_at": utcnow()}})
+            await log_stock_movement(
+                db, current_user, i.product_id, "order_reserved",
+                prev, new_stock, reason=f"Order placed ({i.qty} units)", order_id=order_id,
+            )
+    except Exception:
+        pass
+
     # -- Auto-initiate PhonePe transaction when payment_method=phonepe (Point 24) --
     if body.payment_method == "phonepe":
         from uuid import uuid4
@@ -505,8 +525,22 @@ async def verify_delivery(
         verification_record["seller_earnings_created"] = len(earnings.get("seller_earnings", []))
         verification_record["rider_earning_created"] = bool(earnings.get("rider_earning"))
     except Exception as _e:
-        # Never let settlement creation break the delivery-verify flow
-        pass
+        # Never let settlement creation break the delivery-verify flow, but DO log it (Point 17 fix)
+        import logging
+        logging.getLogger("neds").error("Settlement earnings creation failed for order %s: %s", delivery["order_id"], _e)
+        await log_event(current_user, "settlement.error", "order", delivery["order_id"], {"error": str(_e)})
+
+    # Auto-generate invoice on delivery (Point 19)
+    try:
+        from routes.invoice_routes import generate_invoice_for_order
+        fresh_order2 = await db.orders.find_one({"id": delivery["order_id"]}, {"_id": 0})
+        if fresh_order2:
+            inv = await generate_invoice_for_order(db, fresh_order2, actor=current_user, force=False)
+            verification_record["invoice_number"] = inv.get("invoice_number")
+    except Exception as _e:
+        import logging
+        logging.getLogger("neds").error("Invoice generation failed for order %s: %s", delivery["order_id"], _e)
+        await log_event(current_user, "invoice.error", "order", delivery["order_id"], {"error": str(_e)})
 
     return {"ok": True, "verification": verification_record}
 

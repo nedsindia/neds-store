@@ -50,6 +50,14 @@ DEFAULT_RULES = {
     "rider_bonus_per_delivery_after": 15,
     "rider_bonus_amount": 50.0,
     "rider_monthly_salary": 15000.0,
+    # Enterprise Tax / GST (Point 18)
+    "gst_enabled": True,
+    "default_gst_percentage": 18.0,
+    "company_gst_number": "",
+    "company_pan": "",
+    "company_address": "",
+    "company_state": "",
+    "company_state_code": "",
 }
 
 

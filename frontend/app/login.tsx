@@ -15,8 +15,8 @@ export default function Login() {
   const toast = useToast();
   const { width } = useWindowDimensions();
 
-  const [mobile, setMobile] = useState("9999999999");
-  const [password, setPassword] = useState("Admin@123");
+  const [mobile, setMobile] = useState(process.env.EXPO_PUBLIC_DEMO_MODE === "1" ? "9999999999" : "");
+  const [password, setPassword] = useState(process.env.EXPO_PUBLIC_DEMO_MODE === "1" ? "Admin@123" : "");
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<{ mobile?: string; password?: string }>({});
 
@@ -137,11 +137,13 @@ export default function Login() {
               />
             </View>
 
-            <View style={styles.hintBox}>
-              <Text style={styles.hintLabel}>Demo Super Admin</Text>
-              <Text style={styles.hintText}>Mobile: <Text style={{ fontFamily: theme.fonts.mono }}>9999999999</Text></Text>
-              <Text style={styles.hintText}>Password: <Text style={{ fontFamily: theme.fonts.mono }}>Admin@123</Text></Text>
-            </View>
+            {process.env.EXPO_PUBLIC_DEMO_MODE === "1" ? (
+              <View style={styles.hintBox}>
+                <Text style={styles.hintLabel}>Demo Super Admin</Text>
+                <Text style={styles.hintText}>Mobile: <Text style={{ fontFamily: theme.fonts.mono }}>9999999999</Text></Text>
+                <Text style={styles.hintText}>Password: <Text style={{ fontFamily: theme.fonts.mono }}>Admin@123</Text></Text>
+              </View>
+            ) : null}
           </View>
         </ScrollView>
       </View>

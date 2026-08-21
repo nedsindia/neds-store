@@ -49,6 +49,14 @@ DEFAULT_RULES = {
     "rider_bonus_per_delivery_after": 15,
     "rider_bonus_amount": 50.0,
     "rider_monthly_salary": 15000.0,
+    # Enterprise Tax / GST (Point 18)
+    "gst_enabled": True,
+    "default_gst_percentage": 18.0,
+    "company_gst_number": "",
+    "company_pan": "",
+    "company_address": "",
+    "company_state": "",
+    "company_state_code": "",
 }
 
 SEED_CATEGORIES = [
@@ -156,11 +164,28 @@ async def backfill_products():
 
 
 async def seed_payment_accounts():
-    """Seed one demo UPI + one demo bank account so admin panel has data on first run.
-    Idempotent — skipped if any account already exists."""
+    """Seed payment accounts only in development. In production, admin adds real accounts via UI.
+    Idempotent — skipped if any account already exists.
+
+    To enable demo seed, set env NEDS_SEED_DEMO_PAYMENTS=1.
+    """
+    import os
     db = get_db()
     if await db.payment_accounts.count_documents({}) > 0:
+        # Enforce single-primary invariant across all account types on existing data
+        primaries = await db.payment_accounts.find({"is_primary": True}, {"_id": 0, "id": 1, "created_at": 1}).sort("created_at", 1).to_list(50)
+        if len(primaries) > 1:
+            # Keep the oldest one, demote the rest
+            keep_id = primaries[0]["id"]
+            for p in primaries[1:]:
+                await db.payment_accounts.update_one({"id": p["id"]}, {"$set": {"is_primary": False, "updated_at": utcnow()}})
+            logger.info(f"Fixed multi-primary payment_accounts — kept {keep_id}, demoted {len(primaries)-1} others")
         return
+
+    if os.environ.get("NEDS_SEED_DEMO_PAYMENTS") != "1":
+        logger.info("payment_accounts empty and NEDS_SEED_DEMO_PAYMENTS!=1 — skipping demo seed")
+        return
+
     now = utcnow()
     await db.payment_accounts.insert_many([
         {
@@ -170,29 +195,51 @@ async def seed_payment_accounts():
             "bank_name": None,
             "account_number": None,
             "ifsc": None,
-            "upi_id": "nedsstore@okicici",
-            "label": "Primary UPI",
-            "is_primary": True,
-            "active": True,
-            "created_at": now,
-            "updated_at": now,
-        },
-        {
-            "id": new_id(),
-            "type": "bank",
-            "holder_name": "NEDS STORE PVT LTD",
-            "bank_name": "ICICI Bank",
-            "account_number": "123456789012",
-            "ifsc": "ICIC0001234",
-            "upi_id": None,
-            "label": "Primary Current Account",
+            "upi_id": "demo@upi",
+            "label": "Demo UPI",
             "is_primary": True,
             "active": True,
             "created_at": now,
             "updated_at": now,
         },
     ])
-    logger.info("Seeded 2 default payment accounts")
+    logger.info("Seeded 1 demo payment account (dev mode)")
+
+
+async def seed_roles():
+    """Idempotently seed system roles from rbac.SYSTEM_ROLES.
+    Existing role docs get their `permissions` refreshed to reflect any newly-added catalog keys,
+    but ONLY for system roles that haven't been customized (system: True).
+    Custom roles created via API are never touched.
+    """
+    from rbac import SYSTEM_ROLES
+    db = get_db()
+    now = utcnow()
+    for role_id, spec in SYSTEM_ROLES.items():
+        existing = await db.roles.find_one({"id": role_id})
+        if not existing:
+            await db.roles.insert_one({
+                "id": role_id,
+                "name": spec["name"],
+                "description": spec["description"],
+                "permissions": spec["permissions"],
+                "system": True,
+                "created_at": now,
+                "updated_at": now,
+            })
+        elif existing.get("system"):
+            # Refresh permissions for system roles so newly-added catalog keys apply
+            await db.roles.update_one(
+                {"id": role_id},
+                {"$set": {
+                    "name": spec["name"],
+                    "description": spec["description"],
+                    "permissions": spec["permissions"],
+                    "system": True,
+                    "updated_at": now,
+                }},
+            )
+    logger.info("Seeded system roles")
 
 
 async def seed_all():
@@ -201,3 +248,4 @@ async def seed_all():
     await seed_categories()
     await backfill_products()
     await seed_payment_accounts()
+    await seed_roles()

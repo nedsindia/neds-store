@@ -38,6 +38,14 @@ type Rules = {
   rider_bonus_per_delivery_after: number;
   rider_bonus_amount: number;
   rider_monthly_salary: number;
+  // Tax / GST (Point 18)
+  gst_enabled: boolean;
+  default_gst_percentage: number;
+  company_gst_number: string;
+  company_pan: string;
+  company_address: string;
+  company_state: string;
+  company_state_code: string;
 };
 
 const RIDER_FIELDS: { key: keyof Rules; label: string; suffix: string; hint: string }[] = [
@@ -54,6 +62,15 @@ const GENERAL_FIELDS: { key: keyof Rules; label: string; suffix?: string; hint?:
   { key: "verification_radius_meters", label: "Delivery Verification Radius", suffix: "m", numeric: true, hint: "Rider must be inside this radius before the code is generated." },
   { key: "platform_name", label: "Platform Name" },
   { key: "support_mobile", label: "Support Contact Number" },
+];
+
+const GST_FIELDS: { key: keyof Rules; label: string; suffix?: string; hint?: string; numeric?: boolean }[] = [
+  { key: "default_gst_percentage", label: "Default GST %", suffix: "%", numeric: true, hint: "Used when a product has no per-product GST set." },
+  { key: "company_gst_number", label: "Company GSTIN", hint: "e.g. 29ABCDE1234F1Z5 — shown on all invoices." },
+  { key: "company_pan", label: "Company PAN", hint: "10-character alphanumeric PAN." },
+  { key: "company_address", label: "Company Registered Address" },
+  { key: "company_state", label: "Company State", hint: "Used to determine CGST/SGST vs IGST split." },
+  { key: "company_state_code", label: "Company State Code", hint: "e.g. 29 for Karnataka." },
 ];
 
 const DELIVERY_FIELDS: { key: keyof Rules; label: string; suffix: string; hint: string }[] = [
@@ -333,6 +350,43 @@ export default function RulesPage() {
 
         <View style={styles.grid}>
           {GENERAL_FIELDS.map((f) => (
+            <View key={f.key as string} style={styles.field}>
+              <View style={styles.row}>
+                <Input
+                  label={f.label}
+                  value={form[f.key as string] || ""}
+                  onChangeText={(v) => setForm({ ...form, [f.key as string]: v })}
+                  keyboardType={f.numeric ? "decimal-pad" : "default"}
+                  containerStyle={{ flex: 1 }}
+                  testID={`rules-${f.key}`}
+                />
+                {f.suffix ? <Text style={styles.suffix}>{f.suffix}</Text> : null}
+              </View>
+              {f.hint ? <Text style={styles.hint}>{f.hint}</Text> : null}
+            </View>
+          ))}
+        </View>
+      </View>
+
+      {/* --- Tax / GST (Point 18) --- */}
+      <View style={styles.card}>
+        <View style={styles.cardHead}>
+          <View style={styles.sectionIcon}><Feather name="file-text" size={16} color={theme.colors.primary} /></View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.cardTitle}>Tax &amp; GST Configuration</Text>
+            <Text style={styles.cardSub}>Applied on all invoices. CGST/SGST split when buyer & company are in the same state, otherwise IGST.</Text>
+          </View>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <Text style={styles.hint}>GST Enabled</Text>
+            <Switch
+              value={!!form.gst_enabled}
+              onValueChange={(v) => setForm({ ...form, gst_enabled: v })}
+              trackColor={{ false: "#E4E4E7", true: theme.colors.primary }}
+            />
+          </View>
+        </View>
+        <View style={styles.grid}>
+          {GST_FIELDS.map((f) => (
             <View key={f.key as string} style={styles.field}>
               <View style={styles.row}>
                 <Input
