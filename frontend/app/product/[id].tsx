@@ -15,7 +15,7 @@ export default function ProductDetail() {
   const { id } = useLocalSearchParams<{ id?: string }>();
   const router = useRouter();
   const { width } = useWindowDimensions();
-  const { addItem } = useCart();
+  const { addToCart } = useCart();
   const [data, setData] = useState<Data | null>(null);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
@@ -40,7 +40,7 @@ export default function ProductDetail() {
         <Text style={[styles.stock, !(p.stock && p.stock > 0) && { color: theme.colors.danger }]}>{p.stock && p.stock > 0 ? `${p.stock} available` : "Currently unavailable"}</Text>
         {data.seller ? <View style={styles.seller}><Feather name="shopping-bag" size={18} color={theme.colors.primary} /><View><Text style={styles.sellerLabel}>Sold by</Text><Text style={styles.sellerName}>{data.seller.name || "Approved seller"}{data.seller.verified ? " • Verified" : ""}</Text></View></View> : null}
         {p.description ? <Text style={styles.description}>{p.description}</Text> : null}
-        <View style={styles.actions}><Pressable disabled={!(p.stock && p.stock > 0)} onPress={() => { addItem({ product_id: p.id, name: p.name, price: p.price, quantity: 1, stock: p.stock || 0, image_url: image || undefined } as any); setMessage("Added to cart"); }} style={[styles.cartBtn, !(p.stock && p.stock > 0) && styles.disabled]}><Feather name="shopping-cart" size={17} color="#fff" /><Text style={styles.cartText}>Add to Cart</Text></Pressable><Pressable onPress={() => router.push("/cart" as any)} style={styles.buyBtn}><Text style={styles.buyText}>View Cart</Text></Pressable></View>
+        <View style={styles.actions}><Pressable disabled={!(p.stock && p.stock > 0)} onPress={() => { addToCart({ product_id: p.id, name: p.name, price: p.price, stock: p.stock || 0, image_base64: image || undefined }, 1); setMessage("Added to cart"); }} style={[styles.cartBtn, !(p.stock && p.stock > 0) && styles.disabled]}><Feather name="shopping-cart" size={17} color="#fff" /><Text style={styles.cartText}>Add to Cart</Text></Pressable><Pressable onPress={() => router.push("/cart" as any)} style={styles.buyBtn}><Text style={styles.buyText}>View Cart</Text></Pressable></View>
         {message ? <Text style={styles.success}>{message}</Text> : null}
       </View>
     </View>
