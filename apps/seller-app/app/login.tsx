@@ -1,0 +1,9 @@
+import React,{useState}from"react";
+import{ActivityIndicator,Pressable,StyleSheet,Text,TextInput,View}from"react-native";
+import{router}from"expo-router";
+import{api,setToken}from"@/src/api/client";
+
+export default function SellerLogin(){const[mobile,setMobile]=useState("");const[password,setPassword]=useState("");const[busy,setBusy]=useState(false);const[error,setError]=useState("");
+ const login=async()=>{if(!mobile||!password){setError("Mobile number and password are required");return;}setBusy(true);setError("");try{const r=await api<any>("/auth/login",{method:"POST",body:{mobile,password},skipAuth:true});if(r.user?.role!=="seller")throw new Error("This account is not a seller account");await setToken(r.access_token);router.replace("/");}catch(e:any){setError(e?.message||"Login failed");}finally{setBusy(false);}};
+ return <View style={s.page}><View style={s.card}><Text style={s.brand}>NEDS STORE</Text><Text style={s.title}>Seller Login</Text><TextInput style={s.input} placeholder="Mobile number" keyboardType="phone-pad" value={mobile} onChangeText={setMobile}/><TextInput style={s.input} placeholder="Password" secureTextEntry value={password} onChangeText={setPassword}/>{!!error&&<Text style={s.error}>{error}</Text>}<Pressable style={s.button} onPress={login} disabled={busy}>{busy?<ActivityIndicator color="#fff"/>:<Text style={s.buttonText}>Login</Text>}</Pressable></View></View>}
+const s=StyleSheet.create({page:{flex:1,backgroundColor:"#fafaf8",justifyContent:"center",padding:20},card:{backgroundColor:"#fff",borderWidth:1,borderColor:"#ddd",borderRadius:16,padding:20,gap:12},brand:{fontSize:14,fontWeight:"900"},title:{fontSize:26,fontWeight:"900",marginBottom:8},input:{borderWidth:1,borderColor:"#ddd",borderRadius:9,padding:13},button:{backgroundColor:"#111",padding:14,borderRadius:9,alignItems:"center"},buttonText:{color:"#fff",fontWeight:"900"},error:{color:"#b42318"}});
