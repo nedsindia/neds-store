@@ -1,0 +1,11 @@
+{
+  "expo": {
+    "name": "NEDS STORE",
+    "slug": "neds-store-customer",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "nedsstore",
+    "plugins": ["expo-router", "expo-secure-store"],
+    "experiments": {"typedRoutes": true}
+  }
+}
