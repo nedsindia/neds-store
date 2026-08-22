@@ -1,16 +1,16 @@
 # NEDS STORE — MASTER PROJECT FILE
 
-**Project:** NEDS STORE
-**Company:** Next Era Digital Solutions (NEDS)
-**Repository:** `nedsindia/neds-store`
-**Primary source of truth:** GitHub
-**Version target:** V1.0 Production
-**Master status:** ACTIVE
+**Project:** NEDS STORE  
+**Company:** Next Era Digital Solutions (NEDS)  
+**Repository:** `nedsindia/neds-store`  
+**Primary source of truth:** GitHub  
+**Version target:** V1.0 Production  
+**Master status:** ACTIVE  
 **Last updated:** 22 August 2026
 
 ---
 
-## 1. MASTER RULE
+# 1. MASTER RULE
 
 यह file NEDS STORE के पूरे development का **Single Source of Truth** है।
 
@@ -21,15 +21,18 @@
 - **VERIFY** = code/UI मौजूद है लेकिन functional verification बाकी है.
 - **BLOCKED** = dependency के कारण रुका हुआ.
 
-### Development rules
+### Permanent development rules
 1. FINAL feature को बिना आवश्यकता के बदलना/हटाना नहीं है।
 2. Existing working functionality preserve करनी है।
 3. नया feature जोड़ने से पहले Master File में उसका scope स्पष्ट करना है।
-4. Implementation के बाद testing करनी है।
-5. Testing सफल होने पर ही FINAL mark करना है।
-6. हर major milestone के बाद GitHub commit/push करना है।
-7. Secrets, passwords, API keys और production credentials repository में commit नहीं करने हैं।
-8. कोई बड़ा architecture change बिना Master File update के नहीं करना है।
+4. **Coding से पहले इस Master File और System Architecture & Integration Master को पढ़ना अनिवार्य है।**
+5. Actual GitHub code देखकर ही implementation करना है; अनुमान से coding नहीं करनी है।
+6. Implementation के बाद local/staging में functional testing करनी है।
+7. Testing सफल होने पर ही feature/module को **FINAL** mark करना है।
+8. Completed feature का status इसी Master File में तुरंत update करना है।
+9. हर बड़े milestone के बाद GitHub commit/push करना है।
+10. Secrets, passwords, API keys और production credentials repository में commit नहीं करने हैं।
+11. कोई बड़ा architecture change बिना Master File और Architecture document update के नहीं करना है।
 
 ---
 
@@ -83,8 +86,6 @@ The existing Super Admin Panel is the approved baseline. आगे के का
 - [ ] Payment gateway production configuration
 - [ ] Google Maps production distance API
 - [ ] Seed/demo data cleanup
-
-> These verification items do not change the declaration that the existing Super Admin Panel is the finalized baseline. They are follow-up audit items before production release.
 
 ---
 
@@ -568,73 +569,168 @@ The existing Super Admin Panel is the approved baseline. आगे के का
 
 ---
 
-# 17. GITHUB DEVELOPMENT WORKFLOW
+# 17. LOCAL DEVELOPMENT & VERIFICATION WORKFLOW — PERMANENT RULE
+
+यह workflow हर नए module/feature के लिए लागू होगा। Production पर सीधे test करके development आगे नहीं बढ़ाया जाएगा।
+
+## A. Source
+1. Latest approved code GitHub repository `nedsindia/neds-store` से लिया जाएगा।
+2. Coding से पहले Master File और System Architecture document review किए जाएंगे।
+3. Actual codebase देखकर existing functionality preserve की जाएगी।
+
+## B. Local environment
+1. Backend local environment में चलाया जाएगा।
+2. Frontend/web local environment में चलाया जाएगा।
+3. यदि mobile app है तो local Android emulator या test device पर चलाया जाएगा।
+4. Required local environment variables/secrets secure तरीके से configure किए जाएंगे; उन्हें GitHub में commit नहीं किया जाएगा।
+
+## C. Feature-level testing
+हर completed feature को केवल UI देखकर complete नहीं माना जाएगा। निम्न स्तर पर test किया जाएगा:
+
+**Frontend/UI → API → Backend Business Logic → Database → Response → UI**
+
+उदाहरण: Cart में product add होने पर केवल screen पर item दिखना पर्याप्त नहीं है; stock, seller rules, totals और backend response भी verify होंगे।
+
+## D. Manual functional test
+हर module के लिए:
+- [ ] Happy path
+- [ ] Invalid input
+- [ ] Authentication/authorization
+- [ ] Loading state
+- [ ] Empty state
+- [ ] Error state
+- [ ] Network failure handling
+- [ ] Boundary/edge cases
+- [ ] Data persistence
+
+## E. End-to-end testing
+जहाँ feature दूसरे modules से जुड़ा है, पूरा workflow local/staging environment में test होगा। उदाहरण:
+
+**Customer → Cart → Checkout → Payment/COD → Order → Seller → Rider → Pickup → Delivery → Settlement**
+
+किसी एक screen के सही दिखने पर पूरा workflow COMPLETE नहीं माना जाएगा।
+
+## F. Verification status
+Testing के बाद:
+
+`PENDING → IN PROGRESS → VERIFY`
+
+यदि सभी आवश्यक checks पास हों:
+
+`VERIFY → FINAL`
+
+यदि bug मिले:
+
+`VERIFY → IN PROGRESS`
+
+Bug fix के बाद फिर से relevant tests चलेंगे।
+
+## G. GitHub milestone
+Feature/module के VERIFY/FINAL होने के बाद:
+
+**Local/Stage Test → Review → Master File Status Update → Git Commit → GitHub Push**
+
+GitHub में commit/push होने से पहले feature को FINAL घोषित नहीं किया जाएगा, जब तक testing और status update पूरा न हो।
+
+## H. Production readiness
+पूरे product को production में ले जाने से पहले अलग Full QA होगा:
+- [ ] Frontend QA
+- [ ] Backend/API QA
+- [ ] Database QA
+- [ ] Authentication/RBAC QA
+- [ ] Payment QA
+- [ ] Delivery/GPS QA
+- [ ] Order lifecycle QA
+- [ ] Seller/Rider/Customer integration QA
+- [ ] Security QA
+- [ ] Performance QA
+- [ ] Mobile QA
+- [ ] Backup/recovery QA
+- [ ] Production configuration audit
+
+---
+
+# 18. GITHUB DEVELOPMENT WORKFLOW
 
 1. GitHub repository `nedsindia/neds-store` is the development source.
 2. Work should be done in controlled milestones.
 3. Before coding a module, review this Master File.
 4. Preserve every FINAL feature.
-5. After implementation, test the complete workflow.
+5. After implementation, test the complete workflow locally/staging.
 6. Update this file with the actual status.
 7. Commit and push the completed milestone.
 8. Never commit secrets.
 
 ---
 
-# 18. CURRENT PRIORITY ORDER
+# 19. CURRENT PRIORITY ORDER
 
-### Priority 1
-**Super Admin Panel — FINAL / PROTECTED**
+### Priority 1 — GitHub baseline verification
+- [ ] Full repository audit
+- [ ] Backend audit
+- [ ] Database audit
+- [ ] API audit
+- [ ] Existing Super Admin preservation check
 
-### Priority 2
-**Customer Public Website — PENDING**
+### Priority 2 — Customer Public Website
+- [ ] Implement according to section 4
+- [ ] Integrate existing backend/business logic
+- [ ] Local functional testing
+- [ ] End-to-end testing
+- [ ] Mark verified features FINAL
 
-### Priority 3
-**Customer App — PENDING**
+### Priority 3 — Customer App
+- [ ] Implement according to section 5
+- [ ] Reuse central APIs/business logic
+- [ ] Local Android testing
+- [ ] End-to-end testing
+- [ ] Mark verified features FINAL
 
-### Priority 4
-**Seller App — PENDING**
+### Priority 4 — Seller App
+- [ ] Implement according to section 6
+- [ ] Integrate seller/order/inventory/settlement APIs
+- [ ] Local Android testing
+- [ ] End-to-end testing
+- [ ] Mark verified features FINAL
 
-### Priority 5
-**Rider App — PENDING**
+### Priority 5 — Rider App
+- [ ] Implement according to section 7
+- [ ] Integrate GPS/dispatch/order APIs
+- [ ] Local Android testing
+- [ ] End-to-end testing
+- [ ] Mark verified features FINAL
 
-### Priority 6
-**Full integration + end-to-end QA — PENDING**
-
-### Priority 7
-**Production deployment — PENDING**
+### Priority 6 — Full Integration & Production
+- [ ] Customer ↔ Seller ↔ Rider ↔ Admin integration
+- [ ] Payment integration
+- [ ] Delivery engine
+- [ ] Settlement
+- [ ] Notifications
+- [ ] Full QA
+- [ ] Deployment
 
 ---
 
-# 19. COMPLETION LOG
+# 20. COMPLETION LOG
 
 | Date | Milestone | Status |
 |---|---|---|
-| 22 Aug 2026 | GitHub repository established | FINAL |
-| 22 Aug 2026 | Current NEDS STORE code pushed to GitHub | FINAL |
-| 22 Aug 2026 | Super Admin Panel accepted as finalized baseline | FINAL |
-| 22 Aug 2026 | Customer Public Website scope defined | PENDING |
-| 22 Aug 2026 | Customer App scope defined | PENDING |
-| 22 Aug 2026 | Seller App scope defined | PENDING |
-| 22 Aug 2026 | Rider App scope defined | PENDING |
-| 22 Aug 2026 | Master Project File created | FINAL |
+| 09 Jul 2026 | NEDS STORE SRS Parts 1–9 completed | FINAL |
+| 09 Jul 2026 | V1.0 core business rules finalized | FINAL |
+| 22 Aug 2026 | GitHub repository baseline established | FINAL |
+| 22 Aug 2026 | Existing project code pushed to GitHub | FINAL |
+| 22 Aug 2026 | Future development moved to GitHub workflow | FINAL |
+| 22 Aug 2026 | Local testing/verification workflow added | FINAL |
 
 ---
 
-# 20. FINAL LOCK POLICY
+# 21. MASTER COMPLETION RULE
 
-जब कोई section पूरी तरह implement + test हो जाए:
+> **जो FINAL है उसे सुरक्षित रखें।**  
+> **जो VERIFY है उसे पहले जांचें।**  
+> **जो PENDING है उसे एक-एक करके पूरा करें।**  
+> **Local/Stage में पूरा workflow test करें।**  
+> **Testing सफल होने के बाद Master File में status FINAL करें।**  
+> **फिर GitHub commit/push करें।**
 
-**PENDING → IN PROGRESS → VERIFY → FINAL**
-
-FINAL होने के बाद उस feature को **FINAL LOCK** माना जाएगा।
-
-इस Master File को हर major milestone के बाद update करना अनिवार्य है।
-
----
-
-## NEXT TASK
-
-**GitHub codebase का full technical audit करें और existing implementation को इस Master File के against map करें।**
-
-Audit के बाद केवल वास्तविक स्थिति के आधार पर status बदलें। अनुमान लगाकर किसी feature को FINAL न करें।
+**No guess-based coding. No silent architecture changes. No production-first testing.**
