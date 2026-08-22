@@ -1,0 +1,44 @@
+name: NEDS STORE Quality
+
+on:
+  push:
+    branches:
+      - main
+      - neds-store-development
+  pull_request:
+    branches:
+      - main
+      - neds-store-development
+
+jobs:
+  backend-syntax:
+    name: Backend Python syntax
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Compile backend
+        run: python -m compileall -q backend
+
+  frontend-typecheck:
+    name: Frontend TypeScript check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Enable Corepack
+        run: corepack enable
+      - name: Install dependencies
+        working-directory: frontend
+        run: yarn install --frozen-lockfile
+      - name: TypeScript check
+        working-directory: frontend
+        run: yarn tsc --noEmit
