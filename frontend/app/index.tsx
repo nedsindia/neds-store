@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { Link, useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 
@@ -12,6 +12,7 @@ import { theme } from "@/src/theme";
 type Product = { id: string; name: string; price: number; mrp?: number; stock?: number; image_url?: string | null; image?: string | null; category_id?: string };
 type Category = { id: string; name: string; image_url?: string | null; icon?: string | null };
 type HomeData = { categories: Category[]; featured: Product[]; newest: Product[]; deals: Product[]; platform_name?: string; support_mobile?: string };
+type Serviceability = { serviceable: boolean; reason?: string; message?: string; zone?: { id: string; name: string; extra_delivery_charge?: number } };
 
 export default function Index() {
   const { user, loading: authLoading } = useAuth();
@@ -20,6 +21,8 @@ export default function Index() {
   const [data, setData] = useState<HomeData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [locationLoading, setLocationLoading] = useState(false);
+  const [serviceability, setServiceability] = useState<Serviceability | null>(null);
 
   useEffect(() => {
     if (authLoading) return;
@@ -32,6 +35,59 @@ export default function Index() {
       .catch((e) => setError(e?.message || "Unable to load NEDS STORE"))
       .finally(() => setLoading(false));
   }, [authLoading, user, router]);
+
+  const checkLocation = () => {
+    if (Platform.OS !== "web") {
+      setServiceability({
+        serviceable: false,
+        reason: "app_location_pending",
+        message: "Mobile location flow will be enabled in the Customer App.",
+      });
+      return;
+    }
+    if (!navigator.geolocation) {
+      setServiceability({
+        serviceable: false,
+        reason: "geolocation_unavailable",
+        message: "Location access is not available in this browser. Please use your delivery address at checkout.",
+      });
+      return;
+    }
+
+    setLocationLoading(true);
+    setServiceability(null);
+    navigator.geolocation.getCurrentPosition(
+      async ({ coords }) => {
+        try {
+          const result = await api<Serviceability>("/public/check-location", {
+            method: "POST",
+            body: { lat: coords.latitude, lng: coords.longitude },
+            skipAuth: true,
+          });
+          setServiceability(result);
+        } catch (e: any) {
+          setServiceability({
+            serviceable: false,
+            reason: "check_failed",
+            message: e?.message || "Serviceability check failed. Please try again.",
+          });
+        } finally {
+          setLocationLoading(false);
+        }
+      },
+      (geoError) => {
+        setLocationLoading(false);
+        setServiceability({
+          serviceable: false,
+          reason: geoError.code === 1 ? "permission_denied" : "location_error",
+          message: geoError.code === 1
+            ? "Location permission was denied. You can continue and add an address during checkout."
+            : "Unable to get your location. Please try again or add an address during checkout.",
+        });
+      },
+      { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 },
+    );
+  };
 
   const columns = width >= 1200 ? 4 : width >= 760 ? 3 : 2;
   const gap = 14;
@@ -56,6 +112,21 @@ export default function Index() {
               </View>
             </View>
             <View style={styles.heroVisual}><View style={styles.heroCircle}><Feather name="shopping-bag" size={68} color={theme.colors.primary} /></View><Text style={styles.heroBadge}>LOCAL • FAST • TRUSTED</Text></View>
+          </View>
+
+          <View style={styles.locationCard}>
+            <View style={styles.locationIcon}><Feather name="map-pin" size={22} color={theme.colors.primary} /></View>
+            <View style={styles.locationCopy}>
+              <Text style={styles.locationTitle}>Check delivery availability</Text>
+              <Text style={styles.locationText}>
+                {serviceability?.serviceable
+                  ? `Available in ${serviceability.zone?.name || "your area"}.`
+                  : serviceability?.message || "Check whether NEDS STORE delivers to your current location."}
+              </Text>
+            </View>
+            <Pressable onPress={checkLocation} disabled={locationLoading} style={styles.locationBtn}>
+              {locationLoading ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.locationBtnText}>{serviceability?.serviceable ? "Check Again" : "Use My Location"}</Text>}
+            </Pressable>
           </View>
 
           <View style={styles.sectionHead}><View><Text style={styles.sectionTitle}>Shop by Category</Text><Text style={styles.sectionSub}>Discover products from your local marketplace</Text></View><Link href="/products" asChild><Pressable><Text style={styles.viewAll}>View all →</Text></Pressable></Link></View>
@@ -106,6 +177,13 @@ const styles = StyleSheet.create({
   heroVisual: { width: 300, alignItems: "center", justifyContent: "center" },
   heroCircle: { width: 190, height: 190, borderRadius: 95, backgroundColor: "#fff", alignItems: "center", justifyContent: "center", shadowColor: "#000", shadowOpacity: 0.08, shadowRadius: 20, shadowOffset: { width: 0, height: 10 } },
   heroBadge: { marginTop: 14, fontSize: 10, fontWeight: "900", color: theme.colors.primaryHover, letterSpacing: 1 },
+  locationCard: { marginTop: 18, padding: 16, borderRadius: 14, backgroundColor: "#fff", borderWidth: 1, borderColor: theme.colors.border, flexDirection: "row", alignItems: "center", gap: 12 },
+  locationIcon: { width: 44, height: 44, borderRadius: 12, backgroundColor: theme.colors.primaryLight, alignItems: "center", justifyContent: "center" },
+  locationCopy: { flex: 1 },
+  locationTitle: { color: theme.colors.text, fontSize: 15, fontWeight: "900" },
+  locationText: { color: theme.colors.textMuted, fontSize: 12, lineHeight: 18, marginTop: 3 },
+  locationBtn: { minWidth: 128, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 8, backgroundColor: theme.colors.primary, alignItems: "center", justifyContent: "center", cursor: "pointer" as any },
+  locationBtnText: { color: "#fff", fontSize: 12, fontWeight: "800" },
   section: { marginTop: 34 },
   sectionHead: { flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", gap: 16, marginTop: 30, marginBottom: 14 },
   sectionTitle: { color: theme.colors.text, fontSize: 23, fontWeight: "850" as any },
