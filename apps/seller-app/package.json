@@ -1,0 +1,10 @@
+{
+  "name": "neds-store-seller-app",
+  "version": "1.0.0",
+  "private": true,
+  "main": "expo-router/entry",
+  "scripts": {"start":"expo start","android":"expo start --android","ios":"expo start --ios"},
+  "dependencies": {"expo":"54.0.35","expo-router":"6.0.24","expo-secure-store":"15.0.8","react":"19.1.0","react-native":"0.81.5","react-native-safe-area-context":"5.6.0","@expo/vector-icons":"15.1.1"},
+  "devDependencies": {"@types/react":"19.1.10","typescript":"5.9.3"},
+  "packageManager":"yarn@1.22.22"
+}

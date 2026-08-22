@@ -33,40 +33,45 @@ ORDER_STATUSES = ["placed", "accepted", "packed", "out_for_delivery", "delivered
 # ============ CHECKOUT PREVIEW (Enterprise Delivery Charge Engine — Point 1) ============
 @router.post("/checkout/preview")
 async def checkout_preview(body: CheckoutPreviewRequest, current_user: dict = Depends(get_current_user)):
-    """Return the full delivery-charge breakdown BEFORE placing an order.
-    Used by the Customer App checkout screen so the customer always sees
-    exactly how the delivery charge is calculated."""
+    """Return the delivery-charge breakdown using server-authoritative product data."""
     db = get_db()
     rules = await db.business_rules.find_one({"id": "default"}, {"_id": 0}) or {}
 
-    prod_ids = [i.product_id for i in body.items]
+    prod_ids = list(dict.fromkeys(i.product_id for i in body.items))
     prods: dict = {}
     subtotal = 0.0
     async for p in db.products.find(
-        {"id": {"$in": prod_ids}},
-        {"_id": 0, "id": 1, "name": 1, "price": 1, "weight_kg": 1, "is_bulky": 1, "bulky_charge": 1, "seller_id": 1},
+        {"id": {"$in": prod_ids}, "active": True},
+        {"_id": 0, "id": 1, "name": 1, "price": 1, "stock": 1, "weight_kg": 1,
+         "is_bulky": 1, "bulky_charge": 1, "seller_id": 1},
     ):
         prods[p["id"]] = p
 
     line_items: list[dict] = []
+    requested: dict[str, int] = {}
     for it in body.items:
-        p = prods.get(it.product_id)
-        if not p:
-            raise HTTPException(status_code=400, detail=f"Product not found: {it.product_id}")
-        subtotal += float(p.get("price", 0)) * it.qty
-        line_items.append({"product_id": it.product_id, "qty": it.qty, "name": p.get("name")})
+        requested[it.product_id] = requested.get(it.product_id, 0) + it.qty
 
-    if body.order_subtotal is not None:
-        subtotal = float(body.order_subtotal)
+    for product_id, qty in requested.items():
+        p = prods.get(product_id)
+        if not p:
+            raise HTTPException(status_code=400, detail=f"Product unavailable: {product_id}")
+        stock = int(p.get("stock", 0) or 0)
+        if qty > stock:
+            raise HTTPException(status_code=400, detail=f"Only {stock} unit(s) available for {p.get('name') or product_id}")
+        price = float(p.get("price", 0) or 0)
+        subtotal += price * qty
+        line_items.append({"product_id": product_id, "qty": qty, "name": p.get("name"), "price": price, "seller_id": p.get("seller_id")})
+
+    # Client-provided order_subtotal is intentionally ignored; totals are authoritative on the server.
 
     seller_lat = body.seller_lat
     seller_lng = body.seller_lng
     if seller_lat is None or seller_lng is None:
-        for it in body.items:
-            p = prods.get(it.product_id)
-            if p and p.get("seller_id"):
-                seller = await db.users.find_one({"id": p["seller_id"]}, {"_id": 0, "address_lat": 1, "address_lng": 1})
-                if seller and seller.get("address_lat") is not None:
+        for it in line_items:
+            if it.get("seller_id"):
+                seller = await db.users.find_one({"id": it["seller_id"]}, {"_id": 0, "address_lat": 1, "address_lng": 1})
+                if seller and seller.get("address_lat") is not None and seller.get("address_lng") is not None:
                     seller_lat = seller["address_lat"]
                     seller_lng = seller["address_lng"]
                     break
@@ -117,30 +122,52 @@ async def create_order(
     db = get_db()
     rules = await _get_rules(db)
 
-    customer_id = body.customer_id or current_user["id"]
+    # CUSTOMER identity is always taken from the authenticated session; clients cannot place orders for another customer.
+    customer_id = current_user["id"] if current_user["role"] == ROLE_CUSTOMER else (body.customer_id or current_user["id"])
 
-    subtotal = sum(i.price * i.qty for i in body.items)
-    if rules.get("min_order_amount") and subtotal < rules["min_order_amount"]:
-        raise HTTPException(status_code=400, detail=f"Minimum order amount is ₹{rules['min_order_amount']}")
-
-    # --- Fetch products once — used by BOTH commission calc & delivery engine ---
-    prod_ids = [i.product_id for i in body.items]
+    prod_ids = list(dict.fromkeys(i.product_id for i in body.items))
     prods: dict = {}
     async for p in db.products.find(
-        {"id": {"$in": prod_ids}},
-        {"_id": 0, "id": 1, "name": 1, "commission_percentage": 1,
+        {"id": {"$in": prod_ids}, "active": True},
+        {"_id": 0, "id": 1, "name": 1, "price": 1, "stock": 1, "commission_percentage": 1,
          "weight_kg": 1, "is_bulky": 1, "bulky_charge": 1, "seller_id": 1},
     ):
         prods[p["id"]] = p
 
+    # Build order lines entirely from database truth. Client name/price/seller_id are ignored.
+    requested: dict[str, int] = {}
+    for item in body.items:
+        requested[item.product_id] = requested.get(item.product_id, 0) + item.qty
+
+    subtotal = 0.0
+    server_items: list[dict] = []
+    for product_id, qty in requested.items():
+        p = prods.get(product_id)
+        if not p:
+            raise HTTPException(status_code=400, detail=f"Product unavailable: {product_id}")
+        stock = int(p.get("stock", 0) or 0)
+        if qty > stock:
+            raise HTTPException(status_code=400, detail=f"Only {stock} unit(s) available for {p.get('name') or product_id}")
+        price = float(p.get("price", 0) or 0)
+        if price < 0:
+            raise HTTPException(status_code=400, detail=f"Invalid price configured for {p.get('name') or product_id}")
+        subtotal += price * qty
+        server_items.append({
+            "product_id": product_id,
+            "name": p.get("name") or product_id,
+            "price": price,
+            "qty": qty,
+            "seller_id": p.get("seller_id"),
+        })
+
+    if rules.get("min_order_amount") and subtotal < float(rules["min_order_amount"]):
+        raise HTTPException(status_code=400, detail=f"Minimum order amount is ₹{rules['min_order_amount']}")
+
     # --- Seller location (Delivery Engine): prefer first item's seller lat/lng, else business_rules default ---
     seller_lat = None
     seller_lng = None
-    for it in body.items:
-        p = prods.get(it.product_id)
-        if not p:
-            continue
-        sid = p.get("seller_id")
+    for item in server_items:
+        sid = item.get("seller_id")
         if not sid:
             continue
         seller = await db.users.find_one({"id": sid}, {"_id": 0, "address_lat": 1, "address_lng": 1})
@@ -152,7 +179,7 @@ async def create_order(
     # --- Delivery Charge Engine (Point 1) ---
     breakdown = calculate_delivery_charge(
         rules=rules,
-        items=[i.model_dump() for i in body.items],
+        items=server_items,
         products_by_id=prods,
         customer_lat=body.delivery_lat,
         customer_lng=body.delivery_lng,
@@ -161,43 +188,43 @@ async def create_order(
         order_subtotal=subtotal,
     )
     if breakdown.get("reject"):
-        # Per PRD: exact customer-facing message
         raise HTTPException(status_code=400, detail=breakdown["message"])
     delivery_charge = float(breakdown["final_delivery_charge"])
 
-    # --- Per-product commission (Category-Based Dynamic Commission Module) ---
+    # --- Per-product commission using authoritative server prices ---
     commission = 0.0
     enriched_items: list[dict] = []
-    for i in body.items:
-        line = i.model_dump()
-        p = prods.get(i.product_id)
-        pct = float(p.get("commission_percentage") if p and p.get("commission_percentage") is not None else rules.get("commission_percent", 10.0))
+    for item in server_items:
+        p = prods[item["product_id"]]
+        pct = float(p.get("commission_percentage") if p.get("commission_percentage") is not None else rules.get("commission_percent", 10.0))
+        line = dict(item)
         line["commission_percentage"] = pct
-        line["line_commission"] = round(i.price * i.qty * pct / 100, 2)
+        line["line_commission"] = round(item["price"] * item["qty"] * pct / 100, 2)
         commission += line["line_commission"]
         enriched_items.append(line)
     commission = round(commission, 2)
 
     order_id = new_id()
+    now = utcnow()
     order = {
         "id": order_id,
         "customer_id": customer_id,
         "items": enriched_items,
-        "subtotal": subtotal,
+        "subtotal": round(subtotal, 2),
         "delivery_charge": delivery_charge,
-        "delivery_breakdown": breakdown,  # Full step-by-step breakdown for Customer App
+        "delivery_breakdown": breakdown,
         "commission": commission,
         "total": round(subtotal + delivery_charge, 2),
         "delivery_address": body.delivery_address,
         "delivery_lat": body.delivery_lat,
         "delivery_lng": body.delivery_lng,
         "payment_method": body.payment_method,
-        "payment_status": "pending" if body.payment_method == "cod" else "pending",
+        "payment_status": "pending",
         "status": "placed",
         "notes": body.notes,
-        "created_at": utcnow(),
-        "updated_at": utcnow(),
-        "status_history": [{"status": "placed", "at": utcnow(), "by": current_user["id"]}],
+        "created_at": now,
+        "updated_at": now,
+        "status_history": [{"status": "placed", "at": now, "by": current_user["id"]}],
     }
 
     # -- COD limit enforcement (Point 2) --
@@ -217,28 +244,51 @@ async def create_order(
         raise HTTPException(status_code=400, detail="UPI Intent payments are currently disabled")
     if body.payment_method == "phonepe" and not bool(rules.get("phonepe_enabled", True)):
         raise HTTPException(status_code=400, detail="PhonePe payments are currently disabled")
-    await db.orders.insert_one(order)
+
+    # -- Atomic stock reservation --
+    # Reserve before creating the order so an order can never be created with insufficient stock.
+    reserved: list[tuple[str, int]] = []
+    try:
+        for item in server_items:
+            result = await db.products.update_one(
+                {"id": item["product_id"], "active": True, "stock": {"$gte": item["qty"]}},
+                {"$inc": {"stock": -item["qty"]}, "$set": {"updated_at": utcnow()}},
+            )
+            if result.matched_count != 1:
+                raise HTTPException(status_code=409, detail=f"Stock changed. Please review {item['name']} and try again.")
+            reserved.append((item["product_id"], item["qty"]))
+    except HTTPException:
+        for product_id, qty in reserved:
+            await db.products.update_one({"id": product_id}, {"$inc": {"stock": qty}, "$set": {"updated_at": utcnow()}})
+        raise
+    except Exception:
+        for product_id, qty in reserved:
+            await db.products.update_one({"id": product_id}, {"$inc": {"stock": qty}, "$set": {"updated_at": utcnow()}})
+        raise HTTPException(status_code=500, detail="Unable to reserve inventory. Please try again.")
+
+    # Persist the order only after all stock reservations succeeded. Roll back reservations if persistence fails.
+    try:
+        await db.orders.insert_one(order)
+    except Exception:
+        for product_id, qty in reserved:
+            await db.products.update_one({"id": product_id}, {"$inc": {"stock": qty}, "$set": {"updated_at": utcnow()}})
+        raise HTTPException(status_code=500, detail="Unable to create order. Inventory reservation was rolled back.")
     order.pop("_id", None)
 
-    # -- Deduct stock on order placement (Point 17) --
+    # Record stock movements after the order is safely persisted. Logging failure must not corrupt the order flow.
     try:
         from routes.inventory_routes import log_stock_movement
-        for i in body.items:
-            p = prods.get(i.product_id)
-            if not p:
-                continue
-            full = await db.products.find_one({"id": i.product_id}, {"_id": 0, "stock": 1})
-            if not full:
-                continue
-            prev = int(full.get("stock", 0) or 0)
-            new_stock = max(0, prev - i.qty)
-            await db.products.update_one({"id": i.product_id}, {"$set": {"stock": new_stock, "updated_at": utcnow()}})
+        for product_id, qty in reserved:
+            p = prods[product_id]
+            previous_stock = int(p.get("stock", 0) or 0)
             await log_stock_movement(
-                db, current_user, i.product_id, "order_reserved",
-                prev, new_stock, reason=f"Order placed ({i.qty} units)", order_id=order_id,
+                db, current_user, product_id, "order_reserved",
+                previous_stock, max(0, previous_stock - qty), reason=f"Order placed ({qty} units)", order_id=order_id,
             )
-    except Exception:
-        pass
+    except Exception as exc:
+        import logging
+        logging.getLogger("neds").error("Stock movement logging failed for order %s: %s", order_id, exc)
+        await log_event(current_user, "inventory.log_error", "order", order_id, {"error": str(exc)})
 
     # -- Auto-initiate PhonePe transaction when payment_method=phonepe (Point 24) --
     if body.payment_method == "phonepe":

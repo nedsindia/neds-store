@@ -1,0 +1,8 @@
+import { useEffect,useState } from "react";
+import { ActivityIndicator,FlatList,Pressable,StyleSheet,Text,TextInput,View } from "react-native";
+import { router } from "expo-router";
+import { api } from "../src/api/client";
+
+type Product={id:string;name:string;price:number;stock?:number};
+export default function Products(){const [q,setQ]=useState('');const[p,setP]=useState<Product[]>([]);const[l,setL]=useState(true);const load=()=>{setL(true);api<{items:Product[]}>('/public/products',{query:{search:q,limit:50}}).then(r=>setP(r.items||[])).catch(()=>setP([])).finally(()=>setL(false))};useEffect(load,[]);return <View style={s.page}><Text style={s.title}>Products</Text><TextInput value={q} onChangeText={setQ} onSubmitEditing={load} placeholder="Search products..." style={s.input}/>{l?<ActivityIndicator/>:<FlatList data={p} keyExtractor={x=>x.id} renderItem={({item})=><Pressable style={s.item} onPress={()=>router.push({pathname:'/product/[id]',params:{id:item.id}})}><View style={{flex:1}}><Text style={s.name}>{item.name}</Text><Text>₹{Number(item.price||0).toLocaleString('en-IN')}</Text></View><Text>{item.stock===0?'Out of stock':'View'}</Text></Pressable>} ListEmptyComponent={<Text style={s.empty}>कोई product नहीं मिला।</Text>}/>}</View>}
+const s=StyleSheet.create({page:{flex:1,padding:18,gap:12,backgroundColor:'#f7f7f5'},title:{fontSize:25,fontWeight:'800'},input:{backgroundColor:'#fff',borderWidth:1,borderColor:'#ddd',borderRadius:10,padding:12},item:{backgroundColor:'#fff',padding:15,borderRadius:12,borderWidth:1,borderColor:'#e5e5e5',flexDirection:'row',alignItems:'center',marginBottom:9},name:{fontWeight:'700',marginBottom:5},empty:{color:'#777',textAlign:'center',padding:30}});

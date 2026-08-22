@@ -41,13 +41,18 @@
 | Module | Status |
 |---|---|
 | Super Admin Panel | **FINAL** |
-| Customer Public Website | **PENDING** |
+| Customer Public Website | **IN PROGRESS** |
 | Customer App | **PENDING** |
 | Seller App | **PENDING** |
 | Rider App | **PENDING** |
 | Backend/API | **VERIFY / CONTINUOUS** |
 | Database | **VERIFY / CONTINUOUS** |
 | Production Deployment | **PENDING** |
+
+### 22 August 2026 implementation checkpoint
+Customer Public Website का GitHub implementation baseline अब मौजूद है, जिसमें public home, header/search, product discovery, category/product detail, customer login/register, cart, addresses, checkout, orders, profile और help/legal pages शामिल हैं। यह **FINAL नहीं** है क्योंकि local/staging end-to-end verification अभी बाकी है।
+
+एक audit में checkout/order integrity का critical issue मिला और server-authoritative pricing, customer identity और atomic stock reservation लागू किए गए। इस बदलाव का functional verification अभी **VERIFY pending** है।
 
 ---
 
@@ -89,9 +94,24 @@ The existing Super Admin Panel is the approved baseline. आगे के का
 
 ---
 
-# 4. CUSTOMER PUBLIC WEBSITE — PENDING
+# 4. CUSTOMER PUBLIC WEBSITE — IN PROGRESS
 
 **Goal:** Customer-facing web marketplace using the existing backend/business logic. Admin remains separate.
+
+### GitHub implementation checkpoint — 22 Aug 2026
+Implemented in the current development branch, but **not FINAL until local/staging QA passes**:
+- [x] Public home baseline
+- [x] Public header/navigation/search baseline
+- [x] Product listing/search/filter/sort baseline
+- [x] Category and product detail baseline
+- [x] Customer registration/login baseline
+- [x] Cart baseline with persistent client storage
+- [x] Address management baseline
+- [x] Checkout/order baseline
+- [x] Order history/detail baseline
+- [x] Customer profile/password baseline
+- [x] Help and legal pages baseline
+- [ ] Full end-to-end functional verification
 
 ## A. Public entry & layout
 - [ ] `/` customer home
@@ -672,9 +692,10 @@ GitHub में commit/push होने से पहले feature को FIN
 - [ ] API audit
 - [ ] Existing Super Admin preservation check
 
-### Priority 2 — Customer Public Website
-- [ ] Implement according to section 4
-- [ ] Integrate existing backend/business logic
+### Priority 2 — Customer Public Website — IN PROGRESS
+- [x] Initial implementation baseline exists in GitHub development branch
+- [ ] Complete remaining section-4 features
+- [ ] Integrate existing backend/business logic completely
 - [ ] Local functional testing
 - [ ] End-to-end testing
 - [ ] Mark verified features FINAL
@@ -721,6 +742,8 @@ GitHub में commit/push होने से पहले feature को FIN
 | 22 Aug 2026 | Existing project code pushed to GitHub | FINAL |
 | 22 Aug 2026 | Future development moved to GitHub workflow | FINAL |
 | 22 Aug 2026 | Local testing/verification workflow added | FINAL |
+| 22 Aug 2026 | Customer Public Website implementation baseline | IN PROGRESS |
+| 22 Aug 2026 | Checkout/order server-authority + atomic stock security fix | VERIFY |
 
 ---
 

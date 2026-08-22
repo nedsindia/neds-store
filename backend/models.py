@@ -140,20 +140,29 @@ class ProductUpdate(BaseModel):
 # ---------- Orders ----------
 class OrderItem(BaseModel):
     product_id: str
-    name: str
-    price: float
-    qty: int
+    # Legacy client fields are accepted for backward compatibility but are never authoritative.
+    name: str | None = None
+    price: float | None = None
+    qty: int = Field(..., gt=0, le=1000)
     seller_id: str | None = None
 
 
 class OrderCreate(BaseModel):
-    customer_id: str | None = None  # server sets from current_user for customer
-    items: list[OrderItem]
+    customer_id: str | None = None  # ignored for CUSTOMER; server uses current_user identity
+    items: list[OrderItem] = Field(..., min_length=1, max_length=100)
     delivery_address: str
     delivery_lat: float
     delivery_lng: float
-    payment_method: str = "cod"  # cod | upi
+    payment_method: str = "cod"  # cod | upi | phonepe
     notes: str | None = None
+
+    @field_validator("payment_method")
+    @classmethod
+    def _payment_method(cls, v: str) -> str:
+        v = v.strip().lower()
+        if v not in {"cod", "upi", "phonepe"}:
+            raise ValueError("Unsupported payment method")
+        return v
 
 
 class OrderStatusUpdate(BaseModel):
@@ -290,13 +299,14 @@ class RefundRequest(BaseModel):
 # ---------- Checkout preview ----------
 class CheckoutPreviewItem(BaseModel):
     product_id: str
-    qty: int = 1
+    qty: int = Field(1, gt=0, le=1000)
 
 
 class CheckoutPreviewRequest(BaseModel):
-    items: list[CheckoutPreviewItem]
+    items: list[CheckoutPreviewItem] = Field(..., min_length=1, max_length=100)
     customer_lat: float
     customer_lng: float
     seller_lat: float | None = None
     seller_lng: float | None = None
-    order_subtotal: float | None = None  # if None, computed from products
+    # Deprecated client subtotal retained only for request compatibility; backend must recompute it.
+    order_subtotal: float | None = None
