@@ -22,9 +22,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: yarn
-          cache-dependency-path: frontend/yarn.lock
       - working-directory: frontend
-        run: yarn install --frozen-lockfile
+        run: corepack enable && yarn install
       - working-directory: frontend
         run: npx tsc --noEmit
