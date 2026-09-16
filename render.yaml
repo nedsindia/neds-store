@@ -15,5 +15,7 @@ services:
         sync: false
       - key: CORS_ORIGINS
         sync: false
+      - key: NEDS_ENABLE_SEED
+        value: "0"
       - key: NEDS_SEED_DEMO_PAYMENTS
         value: "0"
